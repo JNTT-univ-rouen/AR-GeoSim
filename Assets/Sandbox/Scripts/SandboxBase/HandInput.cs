@@ -32,7 +32,8 @@ namespace ARSandbox
         public Camera SandboxUICamera;
         public LayerMask SandboxLayerMask;
         public TestObject TestObject;
-
+        
+        public int maxDist ;
         private List<HandInputGesture> CurrentGestures;
         //private SandboxDescriptor sandboxDescriptor;
 
@@ -111,6 +112,7 @@ namespace ARSandbox
                 Ray ray = SandboxUICamera.ViewportPointToRay(screenSpacePoint);
                 RaycastHit hitInfo;
                 bool meshHit = Physics.Raycast(ray, out hitInfo, 1000, SandboxLayerMask);
+                //bool meshHit = Physics.Raycast(ray, out hitInfo, maxDist, SandboxLayerMask);
                 if (meshHit)
                 {
                     depth = hitInfo.point.z / Sandbox.MESH_Z_SCALE - 5;
@@ -146,6 +148,7 @@ namespace ARSandbox
         // Returns a shallow copy of gestures. List is safe to manipulate.
         public List<HandInputGesture> GetCurrentGestures()
         {
+            Debug.Log(CurrentGestures.Count.ToString());    
             return CurrentGestures.GetRange(0, CurrentGestures.Count);
         }
     }

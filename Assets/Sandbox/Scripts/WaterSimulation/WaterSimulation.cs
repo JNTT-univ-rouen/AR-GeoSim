@@ -19,9 +19,12 @@
 //  along with sensilab-ar-sandbox.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
+using Random = UnityEngine.Random;
 
 namespace ARSandbox.WaterSimulation
 {
@@ -48,6 +51,12 @@ namespace ARSandbox.WaterSimulation
 
         private IEnumerator RunSimulationCoroutine;
         private bool initialised;
+        
+        private IEnumerator RunAbsorptionCoroutine;
+        private bool _soilAbsorptionActive;
+        private int soilAbsorptionIterations;
+        public float speedAbsorption;
+        public Toggle WaterAbsorbtionToggle ;
 
         private const int MaxMetaballs = 2000;
 
@@ -80,6 +89,20 @@ namespace ARSandbox.WaterSimulation
             }
         }
 
+        IEnumerator ReduceWater()
+        {
+            while (waterDroplets.Count > 0 & _soilAbsorptionActive)
+            {
+                Destroy(waterDroplets[waterDroplets.Count - 1]);
+                waterDroplets.RemoveAt(waterDroplets.Count - 1);
+                soilAbsorptionIterations++;
+                Debug.Log("soilAbsorptionIterations " + soilAbsorptionIterations);
+                yield return new WaitForSeconds(1*speedAbsorption/ 60.0f);
+            }
+
+            this.WaterAbsorbtionToggle.isOn = false;
+        }
+
         void OnEnable()
         {
             InitialiseSimulation();
@@ -91,10 +114,11 @@ namespace ARSandbox.WaterSimulation
 
             SetUpMetaballCamera();
             MetaballCamera.gameObject.SetActive(true);
-
+            
             StartCoroutine(RunSimulationCoroutine = RunSimulation());
+            Debug.Log(this.WaterAbsorbtionToggle.isOn);
         }
-
+        
         void OnDisable()
         {
             HandInput.OnGesturesReady -= OnGesturesReady;
@@ -305,10 +329,23 @@ namespace ARSandbox.WaterSimulation
         public void UI_ToggleShowParticles(bool showParticles)
         {
             this.showParticles = showParticles;
+            Debug.Log(showParticles);
             foreach (WaterDroplet droplet in waterDroplets)
             {
                 droplet.SetShowMesh(showParticles);
             }
         }
+
+        public void UI_ToggleActivateWaterAbsorption(bool activateWaterAbsorption)
+        {
+            this._soilAbsorptionActive = activateWaterAbsorption;
+            if (activateWaterAbsorption)
+            {
+                StartCoroutine(ReduceWater());
+            }
+
+        }
+        
+        
     }
 }
