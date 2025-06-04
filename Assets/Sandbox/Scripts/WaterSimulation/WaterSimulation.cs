@@ -54,8 +54,7 @@ namespace ARSandbox.WaterSimulation
         
         private IEnumerator RunAbsorptionCoroutine;
         private bool _soilAbsorptionActive;
-        private int soilAbsorptionIterations;
-        public float speedAbsorption;
+        public float WaterAbsorptionSpeed { get; private set; }
         public Toggle WaterAbsorbtionToggle ;
 
         private const int MaxMetaballs = 2000;
@@ -70,6 +69,8 @@ namespace ARSandbox.WaterSimulation
 
                 CreateWaterSurfaceRenderTextures();
                 swapBuffers = false;
+                
+                WaterAbsorptionSpeed = 1.0f;
             }
             initialised = true;
         }
@@ -95,9 +96,8 @@ namespace ARSandbox.WaterSimulation
             {
                 Destroy(waterDroplets[waterDroplets.Count - 1]);
                 waterDroplets.RemoveAt(waterDroplets.Count - 1);
-                soilAbsorptionIterations++;
-                Debug.Log("soilAbsorptionIterations " + soilAbsorptionIterations);
-                yield return new WaitForSeconds(1*speedAbsorption/ 60.0f);
+                
+                yield return new WaitForSeconds(1*WaterAbsorptionSpeed/ 60.0f);
             }
 
             this.WaterAbsorbtionToggle.isOn = false;
@@ -344,6 +344,11 @@ namespace ARSandbox.WaterSimulation
                 StartCoroutine(ReduceWater());
             }
 
+        }
+        public void UI_SetWaterAbsorptionSpeed(float waterSpeedMultiplier)
+        {
+            WaterAbsorptionSpeed = 1/waterSpeedMultiplier;
+            Debug.Log(WaterAbsorptionSpeed);
         }
         
         
