@@ -22,6 +22,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Security.Policy;
 using UnityEngine;
 using UnityEngine.UI;
 using Random = UnityEngine.Random;
@@ -118,7 +120,12 @@ namespace ARSandbox.WaterSimulation
             StartCoroutine(RunSimulationCoroutine = RunSimulation());
             Debug.Log(this.WaterAbsorbtionToggle.isOn);
         }
-        
+
+        private void Update()
+        {
+            HandWaterActivation();
+        }
+
         void OnDisable()
         {
             HandInput.OnGesturesReady -= OnGesturesReady;
@@ -348,9 +355,38 @@ namespace ARSandbox.WaterSimulation
         public void UI_SetWaterAbsorptionSpeed(float waterSpeedMultiplier)
         {
             WaterAbsorptionSpeed = 1/waterSpeedMultiplier;
-            Debug.Log(WaterAbsorptionSpeed);
         }
         
+        private void HandWaterActivation()
+        {
+
+            float sumX = 0, sumY = 0, Z = 0;
+            float totalPixels = 0;
+            
+            foreach (Vector3 vect in Sandbox.collMeshVertices.Where(mesh => mesh.z < 360 & mesh.z > 5).OrderBy(mesh => mesh.z).ToArray())
+            {
+                sumX += vect.x;
+                sumY += vect.y;
+                Z+=vect.z;
+                totalPixels++;
+                
+
+            }
+            float avgX = sumX / totalPixels;
+            float avgY = sumY / totalPixels;
+            Vector3 vector3 = new Vector3(avgX, avgY, Z);
+            
+            /*if(totalPixels>1)GameObject.CreatePrimitive(PrimitiveType.Sphere).transform.position = new Vector3(avgX, avgY, 360);*/
+            if (totalPixels > 1)
+            {
+                if (!Physics.CheckSphere(vector3 + new Vector3(0, 0, -5), 1.0f))
+                {
+                    WaterDroplet waterDroplet = Instantiate(WaterDroplet, vector3, Quaternion.identity);
+                    waterDroplet.SetShowMesh(showParticles);
+                    waterDroplets.Add(waterDroplet);
+                }
+            }
+        }
         
     }
 }

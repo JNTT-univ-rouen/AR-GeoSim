@@ -20,8 +20,10 @@
 //
 
 using System;
+using System.Linq;
 using UnityEngine;
 using Windows.Kinect;
+using ARSandbox.WaterSimulation;
 
 namespace ARSandbox
 {
@@ -115,7 +117,7 @@ namespace ARSandbox
 
         private Texture TopographyLabelMaskTex;
 
-        private Vector3[] collMeshVertices;
+        public Vector3[] collMeshVertices;
         private int[] collMeshTris;
         private int colliderDelay = 0;
 
@@ -732,7 +734,16 @@ namespace ARSandbox
 
             if (colliderDelay == COLL_MESH_DELAY)
             {
+                
                 collMeshVertices_Buffer.GetData(collMeshVertices);
+               /* Vector3[] listVect = new Vector3[50];
+                int indexVect = 0;
+                foreach( Vector3 vect in (collMeshVertices.Where(mesh => mesh.z < 370)))
+                {
+                    listVect[indexVect] = vect;
+                    indexVect++;
+                };
+                Debug.Log(listVect);*/
                 collMeshTris_Buffer.GetData(collMeshTris);
 
                 colliderMesh.vertices = collMeshVertices;
@@ -745,6 +756,9 @@ namespace ARSandbox
             {
                 colliderDelay++;
             }
+            
         }
+
+        
     }
 }

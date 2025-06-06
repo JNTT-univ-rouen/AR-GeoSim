@@ -35,7 +35,7 @@ namespace ARSandbox
         
         public int maxDist ;
         private List<HandInputGesture> CurrentGestures;
-        //private SandboxDescriptor sandboxDescriptor;
+        private SandboxDescriptor sandboxDescriptor;
 
         public delegate void OnGesturesReady_Delegate();
         public static OnGesturesReady_Delegate OnGesturesReady;
@@ -59,7 +59,7 @@ namespace ARSandbox
         private void OnSandboxReady()
         {
             IsCalibrating = false;
-            //sandboxDescriptor = Sandbox.GetSandboxDescriptor();
+            sandboxDescriptor = Sandbox.GetSandboxDescriptor();
         }
 
         private void OnNewProcessedData()
@@ -143,6 +143,10 @@ namespace ARSandbox
             {
                 print("ERROR: Gesture with id: " + touchID.ToString() + " is missing!");
             }
+        }
+
+        private void OnHandDetected()
+        {
         }
 
         // Returns a shallow copy of gestures. List is safe to manipulate.
