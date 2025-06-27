@@ -24,6 +24,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Policy;
+using TMPro.SpriteAssetUtilities;
+using UnityEditor.ShaderKeywordFilter;
 using UnityEngine;
 using UnityEngine.UI;
 using Random = UnityEngine.Random;
@@ -59,6 +61,10 @@ namespace ARSandbox.WaterSimulation
         public float WaterAbsorptionSpeed { get; private set; }
         public Toggle WaterAbsorbtionToggle ;
 
+        public int HandTresholdMin{ get;  set; }
+        public int HandTresholdMax{ get;  set; }
+        private int[] handDepthData ;
+        
         private const int MaxMetaballs = 2000;
 
         void InitialiseSimulation()
@@ -73,6 +79,8 @@ namespace ARSandbox.WaterSimulation
                 swapBuffers = false;
                 
                 WaterAbsorptionSpeed = 1.0f;
+                HandTresholdMin = 800;
+                HandTresholdMax = 1150;
             }
             initialised = true;
         }
@@ -117,13 +125,15 @@ namespace ARSandbox.WaterSimulation
             SetUpMetaballCamera();
             MetaballCamera.gameObject.SetActive(true);
             
+            StartCoroutine(GetHandPositionCoroutine());
             StartCoroutine(RunSimulationCoroutine = RunSimulation());
-            Debug.Log(this.WaterAbsorbtionToggle.isOn);
+
         }
 
         private void Update()
         {
-            HandWaterActivation();
+            //if(Sandbox.SandboxReady)CheckTreshold();
+            //if(Sandbox.SandboxReady)HandWaterActivation();
         }
 
         void OnDisable()
@@ -157,7 +167,10 @@ namespace ARSandbox.WaterSimulation
             SetUpMetaballCamera();
             sandboxDescriptor = Sandbox.GetSandboxDescriptor();
 
+            StartCoroutine(GetHandPositionCoroutine());
+
             StartCoroutine(RunSimulationCoroutine = RunSimulation());
+
         }
 
         private void CreateWaterSurfaceRenderTextures()
@@ -303,18 +316,22 @@ namespace ARSandbox.WaterSimulation
             metaballRT = new RenderTexture((int)(256.0f * aspectRatio), 256, 0);
         }
 
+        private void DropWater(Vector3 position)
+        {
+            if (!Physics.CheckSphere(position + new Vector3(0, 0, -5), 1.0f))
+            {
+                WaterDroplet waterDroplet = Instantiate(WaterDroplet, position, Quaternion.identity);
+                waterDroplet.SetShowMesh(showParticles);
+                waterDroplets.Add(waterDroplet);
+            }
+        }
         private void OnGesturesReady()
         {
             foreach (HandInputGesture gesture in HandInput.GetCurrentGestures())
             {
                 if (!gesture.OutOfBounds)
                 {
-                    if (!Physics.CheckSphere(gesture.WorldPosition + new Vector3(0, 0, -5), 1.0f))
-                    {
-                        WaterDroplet waterDroplet = Instantiate(WaterDroplet, gesture.WorldPosition, Quaternion.identity);
-                        waterDroplet.SetShowMesh(showParticles);
-                        waterDroplets.Add(waterDroplet);
-                    }
+                    DropWater(gesture.WorldPosition);
                 }
             }
         }
@@ -387,6 +404,149 @@ namespace ARSandbox.WaterSimulation
                 }
             }
         }
-        
+
+        private void CheckTreshold()
+        {
+            // division euclidienne par 231
+            // X = le Reste, Y = le quotient
+            //Exemple: 35574 (totalDataPoints) = 154(Y) *231 + 0 (X)
+            
+            //On verifie si il existe des point dans la zone du treshold choisi
+            Tuple<int,int>[] tuple = new Tuple<int,int>[Sandbox.intDepthData.Where(depth => depth < HandTresholdMax & depth > HandTresholdMin).ToArray().Length];
+            tuple = Sandbox.intDepthData.Select((depth, index) => new Tuple<int,int>(depth, index)).ToArray();
+
+            tuple = tuple.Where(tupleTuple => tupleTuple.Item1 > HandTresholdMin & tupleTuple.Item1 < HandTresholdMax).ToArray();
+            
+
+            //int checkAvg = 0;
+            float dist = 0f;
+            //Si on trouve des points, on fait la moyenne des position de ses points pour trouver une position centralisé
+            /*if (tuple.Length != 0)
+            {
+                int index = 0;
+                foreach (Tuple<int, int> t in tuple)
+                {
+                    handDectectionVector[index] = new Vector3( t.Item2 %231,t.Item2/231,t.Item1);
+                    index++;
+                }
+                float sumX = 0, sumY = 0, sumZ = 0;
+                int totalPixels = 0;
+            
+                foreach (Vector3 vect in handDectectionVector)
+                {
+                        sumX += vect.x;
+                        sumY += vect.y;
+                        sumZ+=vect.z;
+                        totalPixels++;
+
+                }
+                int avgX = (int)sumX / totalPixels;
+                int avgY = (int)sumY / totalPixels;
+                float avgZ = sumZ / totalPixels;
+                Vector3 vector3 = Sandbox.DataPosToWorldPos(new Point(avgX, avgY));
+                vector3.z = avgZ;*/
+                if (tuple.Length != 0)
+                {
+                    Vector3[] listAvgPoint = new Vector3[5];
+                    
+                    //StartCoroutine(AveragePoint(tuple, listAvgPoint, checkAvg));
+                    /*while (checkAvg < 5)
+                    {
+                        listAvgPoint[checkAvg] = AveragePoint(tuple,listAvgPoint);
+                        checkAvg++;
+                    }*/
+                    StartCoroutine(GetHandPositionCoroutine());
+                    if (listAvgPoint.Length==5)for (int i = 1; i < 5; i++)
+                    {
+                        dist =+ Vector3.Distance(listAvgPoint[i - 1], listAvgPoint[i]);
+                        
+                    }
+                }
+
+                //Si on a recupéré a proximativement la même position sur plusieurs frame on active l'eau
+                if (dist > 1 & dist < 5)
+                {
+                     //DropWater();
+                     Debug.Log(dist);
+                }
+        }
+
+        private Vector3 AveragePoint(Tuple<int, int>[] tuple)
+        {
+                Vector3[] handDetectionVectors = new Vector3[tuple.Length];
+                int index = 0;
+                foreach (Tuple<int, int> t in tuple)
+                {
+                    handDetectionVectors[index] = new Vector3(t.Item2 % 231, t.Item2 / 231, t.Item1);
+                    index++;
+                }
+
+                float sumX = 0, sumY = 0, sumZ = 0;
+                int totalPixels = 0;
+
+                foreach (Vector3 vect in handDetectionVectors)
+                {
+                    sumX += vect.x;
+                    sumY += vect.y;
+                    sumZ += vect.z;
+                    totalPixels++;
+
+                }
+
+                int avgX = (int)sumX / totalPixels;
+                int avgY = (int)sumY / totalPixels;
+                float avgZ = sumZ / totalPixels;
+                Vector3 vector3 = Sandbox.DataPosToWorldPos(new Point(avgX, avgY));
+                vector3.z = 1000;
+                
+                return vector3;
+        }
+
+        IEnumerator GetHandPositionCoroutine()
+        {
+            while (true)
+            {
+                Vector3[] listAvgPoint = new Vector3[3];
+                float dist = 0f;
+                int getPosition = 0;
+                Tuple<int, int>[] tuple = new Tuple<int, int>[Sandbox.intDepthData
+                    .Where(depth => depth < HandTresholdMax & depth > HandTresholdMin).ToArray().Length];
+
+                tuple = Sandbox.intDepthData.Select((depth, index) => new Tuple<int, int>(depth, index)).ToArray();
+                tuple = tuple.Where(tupleTuple =>
+                    tupleTuple.Item1 > HandTresholdMin & tupleTuple.Item1 < HandTresholdMax).ToArray();
+
+
+                if (tuple.Length != 0)
+                {
+                    while (getPosition < 3)
+                    {
+                        tuple = Sandbox.intDepthData.Select((depth, index) => new Tuple<int, int>(depth, index)).ToArray();
+                        tuple = tuple.Where(tupleTuple =>
+                            tupleTuple.Item1 > HandTresholdMin & tupleTuple.Item1 < HandTresholdMax).ToArray();
+                        if (tuple.Length != 0)
+                        {
+                            listAvgPoint[getPosition] = AveragePoint(tuple);
+                        }
+                        getPosition++;
+                        yield return new WaitForSeconds(1/20.0f);
+                    }
+                    //Debug.Log(listAvgPoint[0]+ " " +listAvgPoint[1] + " " +listAvgPoint[2] );
+                    
+                    if (listAvgPoint.Length == getPosition)
+                        for (int i = 1; i < getPosition; i++)
+                        {
+                            dist = +Vector3.Distance(listAvgPoint[i - 1], listAvgPoint[i]);
+
+                        }
+                }
+                
+                if (dist >0 )
+                {
+                    DropWater(listAvgPoint[getPosition-1]);
+                }
+                yield return new WaitForSeconds(1/60.0f);
+            }
+        }
     }
 }

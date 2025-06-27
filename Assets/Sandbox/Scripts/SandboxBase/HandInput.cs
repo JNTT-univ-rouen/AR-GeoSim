@@ -144,15 +144,11 @@ namespace ARSandbox
                 print("ERROR: Gesture with id: " + touchID.ToString() + " is missing!");
             }
         }
-
-        private void OnHandDetected()
-        {
-        }
+        
 
         // Returns a shallow copy of gestures. List is safe to manipulate.
         public List<HandInputGesture> GetCurrentGestures()
         {
-            Debug.Log(CurrentGestures.Count.ToString());    
             return CurrentGestures.GetRange(0, CurrentGestures.Count);
         }
     }

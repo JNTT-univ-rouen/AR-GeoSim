@@ -122,6 +122,7 @@ namespace ARSandbox
         private int colliderDelay = 0;
 
         private byte[] rawDepthData;
+        public int[] intDepthData; 
         public ushort[] depthDataBuffer { get; private set; }
 
         private void Start()
@@ -496,6 +497,7 @@ namespace ARSandbox
             int totalValues = calibrationDescriptor.TotalDataPoints;
 
             rawDepthData = new byte[totalValues * 2];
+            intDepthData = new int[totalValues];
             rawDepthsTex = new Texture2D(width, height, TextureFormat.R16, false);
             rawDepthsTex.filterMode = FilterMode.Bilinear;
 
@@ -634,6 +636,8 @@ namespace ARSandbox
 
                 rawDepthData[2 * i] = (byte)depthDataBuffer[index];
                 rawDepthData[2 * i + 1] = (byte)(depthDataBuffer[index] >> 8);
+                intDepthData[1 * i] = depthDataBuffer[index];
+                //intDepthData[2 * i + 1] = (depthDataBuffer[index] >> 8);
 
                 x += 1;
                 if (x >= dataEndX)
@@ -642,6 +646,8 @@ namespace ARSandbox
                     y += 1;
                 }
             }
+            
+
 
             rawDepthsTex.LoadRawTextureData(rawDepthData);
             rawDepthsTex.Apply();
@@ -736,14 +742,6 @@ namespace ARSandbox
             {
                 
                 collMeshVertices_Buffer.GetData(collMeshVertices);
-               /* Vector3[] listVect = new Vector3[50];
-                int indexVect = 0;
-                foreach( Vector3 vect in (collMeshVertices.Where(mesh => mesh.z < 370)))
-                {
-                    listVect[indexVect] = vect;
-                    indexVect++;
-                };
-                Debug.Log(listVect);*/
                 collMeshTris_Buffer.GetData(collMeshTris);
 
                 colliderMesh.vertices = collMeshVertices;
