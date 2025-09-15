@@ -25,7 +25,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Policy;
 using TMPro.SpriteAssetUtilities;
-using UnityEditor.ShaderKeywordFilter;
+//using UnityEditor.ShaderKeywordFilter;
 using UnityEngine;
 using UnityEngine.UI;
 using Random = UnityEngine.Random;
@@ -36,6 +36,7 @@ namespace ARSandbox.WaterSimulation
     {
         public Sandbox Sandbox;
         public HandInput HandInput;
+        public FreezeFrame FreezeFrame;
         public CalibrationManager CalibrationManager;
         public WaterDroplet WaterDroplet;
         public Camera MetaballCamera;
@@ -61,11 +62,28 @@ namespace ARSandbox.WaterSimulation
         public float WaterAbsorptionSpeed { get; private set; }
         public Toggle WaterAbsorbtionToggle ;
 
-        public int HandTresholdMin{ get;  set; }
-        public int HandTresholdMax{ get;  set; }
-        private int[] handDepthData ;
+        [Header("Hand Detection Settings")]
+        public int HandTresholdMin = 600;
+        public int HandTresholdMax = 1150;
+        public float handDetectionInterval = 0.1f; // Detection every 100ms instead of every frame
+        public float minHandMovement = 5f; // Minimum movement to trigger water drop
+        public float maxHandMovement = 25f; // Maximum movement to reset the stability check
+        public float maxHandDistance = 50f; // Maximum distance from sandbox center
+        
+        [Header("HandInput Integration")]
+        public bool enableHandInputIntegration = true; // Enable integration with HandInput system
+        public float gestureCleanupInterval = 0.5f; // How often to clean up old gestures
+        public float gestureMaxAge = 2.0f; // Maximum age of gestures before cleanup
+        
+        private int[] handDepthData;
+        private Vector3 lastHandPosition = Vector3.zero;
+        private int nextGestureID = 1000; // Start from 1000 to avoid conflicts with UI gestures
+        private float lastCleanupTime = 0f;
+
+        private int stabilityThreshold = 60;
         
         private const int MaxMetaballs = 2000;
+
 
         void InitialiseSimulation()
         {
@@ -79,7 +97,7 @@ namespace ARSandbox.WaterSimulation
                 swapBuffers = false;
                 
                 WaterAbsorptionSpeed = 1.0f;
-                HandTresholdMin = 800;
+                HandTresholdMin = 600;
                 HandTresholdMax = 1150;
             }
             initialised = true;
@@ -107,7 +125,7 @@ namespace ARSandbox.WaterSimulation
                 Destroy(waterDroplets[waterDroplets.Count - 1]);
                 waterDroplets.RemoveAt(waterDroplets.Count - 1);
                 
-                yield return new WaitForSeconds(1*WaterAbsorptionSpeed/ 60.0f);
+                yield return new WaitForSeconds(WaterAbsorptionSpeed/ 60.0f);
             }
 
             this.WaterAbsorbtionToggle.isOn = false;
@@ -130,11 +148,6 @@ namespace ARSandbox.WaterSimulation
 
         }
 
-        private void Update()
-        {
-            //if(Sandbox.SandboxReady)CheckTreshold();
-            //if(Sandbox.SandboxReady)HandWaterActivation();
-        }
 
         void OnDisable()
         {
@@ -166,8 +179,6 @@ namespace ARSandbox.WaterSimulation
             HandInput.OnGesturesReady += OnGesturesReady;
             SetUpMetaballCamera();
             sandboxDescriptor = Sandbox.GetSandboxDescriptor();
-
-            StartCoroutine(GetHandPositionCoroutine());
 
             StartCoroutine(RunSimulationCoroutine = RunSimulation());
 
@@ -316,7 +327,7 @@ namespace ARSandbox.WaterSimulation
             metaballRT = new RenderTexture((int)(256.0f * aspectRatio), 256, 0);
         }
 
-        private void DropWater(Vector3 position)
+        public void DropWater(Vector3 position)
         {
             if (!Physics.CheckSphere(position + new Vector3(0, 0, -5), 1.0f))
             {
@@ -325,13 +336,130 @@ namespace ARSandbox.WaterSimulation
                 waterDroplets.Add(waterDroplet);
             }
         }
+
+        /// <summary>
+        /// Creates a HandInputGesture from detected hand position and adds it to HandInput
+        /// </summary>
+        private void AddHandToHandInput(Vector3 worldPosition)
+        {
+            if (!enableHandInputIntegration || HandInput == null)
+                return;
+
+            // Check if a gesture with this position already exists (avoid duplicates)
+            List<HandInputGesture> currentGestures = HandInput.GetCurrentGestures();
+            bool gestureExists = currentGestures.Any(gesture => 
+                Vector3.Distance(gesture.WorldPosition, worldPosition) < minHandMovement);
+
+            if (gestureExists)
+                return;
+
+            // Create new gesture
+            Vector2 normalisedPosition = Sandbox.WorldPosToNormalisedPos(worldPosition);
+            Point dataPosition = Sandbox.WorldPosToDataPos(worldPosition);
+            float depth = worldPosition.z / Sandbox.MESH_Z_SCALE;
+            bool outOfBounds = !IsHandWithinBounds(worldPosition);
+
+            HandInputGesture newGesture = new HandInputGesture(
+                nextGestureID++, 
+                worldPosition, 
+                normalisedPosition, 
+                depth, 
+                dataPosition, 
+                outOfBounds, 
+                false // Not a UI gesture
+            );
+
+            // Add to HandInput's CurrentGestures list
+            // We need to access the private CurrentGestures list, so we'll use reflection or add a public method
+            AddGestureToHandInput(newGesture);
+        }
+
+        /// <summary>
+        /// Adds a gesture to HandInput's CurrentGestures list
+        /// </summary>
+        private void AddGestureToHandInput(HandInputGesture gesture)
+        {
+            if (HandInput != null)
+            {
+                HandInput.AddDetectedHandGesture(gesture);
+            }
+        }
+
+        /// <summary>
+        /// Check if hand position is within sandbox bounds
+        /// </summary>
+        private bool IsHandWithinBounds(Vector3 handPosition)
+        {
+            if (sandboxDescriptor == null)
+                return false;
+
+            // Check if hand is within sandbox area
+            bool withinX = handPosition.x >= sandboxDescriptor.MeshStart.x && 
+                          handPosition.x <= sandboxDescriptor.MeshEnd.x;
+            bool withinY = handPosition.y >= sandboxDescriptor.MeshStart.y && 
+                          handPosition.y <= sandboxDescriptor.MeshEnd.y;
+            
+            // Check if hand is within reasonable depth range
+            bool withinDepth = handPosition.z >= 0 && handPosition.z <= 2000; // 0-2m range
+
+            return withinX && withinY && withinDepth;
+        }
+
+        /// <summary>
+        /// Clean up old detected hand gestures from HandInput
+        /// </summary>
+        private void CleanupOldGestures()
+        {
+            if (!enableHandInputIntegration || HandInput == null)
+                return;
+
+            // Only cleanup at specified intervals
+            if (Time.time - lastCleanupTime < gestureCleanupInterval)
+                return;
+
+            lastCleanupTime = Time.time;
+
+            List<HandInputGesture> currentGestures = HandInput.GetCurrentGestures();
+            List<int> gesturesToRemove = new List<int>();
+
+            // Find old detected hand gestures to remove
+            foreach (HandInputGesture gesture in currentGestures)
+            {
+                // Only cleanup detected hand gestures (not UI gestures)
+                if (!gesture.IsUIGesture && gesture.GestureID >= 1000)
+                {
+                    // Check if gesture is too old
+                    float gestureAge = Time.time - (gesture.Age * 0.033f); // Approximate age in seconds
+                    if (gestureAge > gestureMaxAge)
+                    {
+                        gesturesToRemove.Add(gesture.GestureID);
+                    }
+                }
+            }
+
+            // Remove old gestures
+            foreach (int gestureID in gesturesToRemove)
+            {
+                HandInput.RemoveGesture(gestureID);
+                Debug.Log($"Cleaned up old detected hand gesture with ID {gestureID}");
+            }
+        }
         private void OnGesturesReady()
         {
             foreach (HandInputGesture gesture in HandInput.GetCurrentGestures())
             {
                 if (!gesture.OutOfBounds)
                 {
-                    DropWater(gesture.WorldPosition);
+                    // Check if frame is frozen - store gesture instead of dropping water immediately
+                    if (FreezeFrame.isFrameFrozen)
+                    {
+                        //Sandbox.StoreGesture(gesture.WorldPosition);
+                    }
+                    else
+                    {
+                        // Normal water drop when not frozen
+                        DropWater(gesture.WorldPosition);
+                    }
                 }
             }
         }
@@ -374,103 +502,29 @@ namespace ARSandbox.WaterSimulation
             WaterAbsorptionSpeed = 1/waterSpeedMultiplier;
         }
         
-        private void HandWaterActivation()
+
+
+        
+        
+        private Vector3 GetHandCurrentWorldPosition()
         {
+            // Get depth points within threshold range
+            var validPoints = Sandbox.intDepthData
+                .Select((depth, index) => new { Depth = depth, Index = index })
+                .Where(p => p.Depth > HandTresholdMin && p.Depth < HandTresholdMax)
+                .ToArray();
 
-            float sumX = 0, sumY = 0, Z = 0;
-            float totalPixels = 0;
-            
-            foreach (Vector3 vect in Sandbox.collMeshVertices.Where(mesh => mesh.z < 360 & mesh.z > 5).OrderBy(mesh => mesh.z).ToArray())
-            {
-                sumX += vect.x;
-                sumY += vect.y;
-                Z+=vect.z;
-                totalPixels++;
-                
+            if (validPoints.Length == 0) return Vector3.zero;
 
-            }
-            float avgX = sumX / totalPixels;
-            float avgY = sumY / totalPixels;
-            Vector3 vector3 = new Vector3(avgX, avgY, Z);
+            // Calculate average position
+            var avgX = validPoints.Average(p => p.Index % 231);
+            var avgY = validPoints.Average(p => p.Index / 231);
+            var currentPosition = Sandbox.DataPosToWorldPos(new Point((int)avgX, (int)avgY));
+            currentPosition.z = HandTresholdMin;
             
-            /*if(totalPixels>1)GameObject.CreatePrimitive(PrimitiveType.Sphere).transform.position = new Vector3(avgX, avgY, 360);*/
-            if (totalPixels > 1)
-            {
-                if (!Physics.CheckSphere(vector3 + new Vector3(0, 0, -5), 1.0f))
-                {
-                    WaterDroplet waterDroplet = Instantiate(WaterDroplet, vector3, Quaternion.identity);
-                    waterDroplet.SetShowMesh(showParticles);
-                    waterDroplets.Add(waterDroplet);
-                }
-            }
+            return currentPosition;
         }
-
-        private void CheckTreshold()
-        {
-            // division euclidienne par 231
-            // X = le Reste, Y = le quotient
-            //Exemple: 35574 (totalDataPoints) = 154(Y) *231 + 0 (X)
-            
-            //On verifie si il existe des point dans la zone du treshold choisi
-            Tuple<int,int>[] tuple = new Tuple<int,int>[Sandbox.intDepthData.Where(depth => depth < HandTresholdMax & depth > HandTresholdMin).ToArray().Length];
-            tuple = Sandbox.intDepthData.Select((depth, index) => new Tuple<int,int>(depth, index)).ToArray();
-
-            tuple = tuple.Where(tupleTuple => tupleTuple.Item1 > HandTresholdMin & tupleTuple.Item1 < HandTresholdMax).ToArray();
-            
-
-            //int checkAvg = 0;
-            float dist = 0f;
-            //Si on trouve des points, on fait la moyenne des position de ses points pour trouver une position centralisé
-            /*if (tuple.Length != 0)
-            {
-                int index = 0;
-                foreach (Tuple<int, int> t in tuple)
-                {
-                    handDectectionVector[index] = new Vector3( t.Item2 %231,t.Item2/231,t.Item1);
-                    index++;
-                }
-                float sumX = 0, sumY = 0, sumZ = 0;
-                int totalPixels = 0;
-            
-                foreach (Vector3 vect in handDectectionVector)
-                {
-                        sumX += vect.x;
-                        sumY += vect.y;
-                        sumZ+=vect.z;
-                        totalPixels++;
-
-                }
-                int avgX = (int)sumX / totalPixels;
-                int avgY = (int)sumY / totalPixels;
-                float avgZ = sumZ / totalPixels;
-                Vector3 vector3 = Sandbox.DataPosToWorldPos(new Point(avgX, avgY));
-                vector3.z = avgZ;*/
-                if (tuple.Length != 0)
-                {
-                    Vector3[] listAvgPoint = new Vector3[5];
-                    
-                    //StartCoroutine(AveragePoint(tuple, listAvgPoint, checkAvg));
-                    /*while (checkAvg < 5)
-                    {
-                        listAvgPoint[checkAvg] = AveragePoint(tuple,listAvgPoint);
-                        checkAvg++;
-                    }*/
-                    StartCoroutine(GetHandPositionCoroutine());
-                    if (listAvgPoint.Length==5)for (int i = 1; i < 5; i++)
-                    {
-                        dist =+ Vector3.Distance(listAvgPoint[i - 1], listAvgPoint[i]);
-                        
-                    }
-                }
-
-                //Si on a recupéré a proximativement la même position sur plusieurs frame on active l'eau
-                if (dist > 1 & dist < 5)
-                {
-                     //DropWater();
-                     Debug.Log(dist);
-                }
-        }
-
+        
         private Vector3 AveragePoint(Tuple<int, int>[] tuple)
         {
                 Vector3[] handDetectionVectors = new Vector3[tuple.Length];
@@ -506,46 +560,48 @@ namespace ARSandbox.WaterSimulation
         {
             while (true)
             {
-                Vector3[] listAvgPoint = new Vector3[3];
-                float dist = 0f;
-                int getPosition = 0;
-                Tuple<int, int>[] tuple = new Tuple<int, int>[Sandbox.intDepthData
-                    .Where(depth => depth < HandTresholdMax & depth > HandTresholdMin).ToArray().Length];
+                // Clean up old gestures periodically
+                //CleanupOldGestures();
 
-                tuple = Sandbox.intDepthData.Select((depth, index) => new Tuple<int, int>(depth, index)).ToArray();
-                tuple = tuple.Where(tupleTuple =>
-                    tupleTuple.Item1 > HandTresholdMin & tupleTuple.Item1 < HandTresholdMax).ToArray();
-
-
-                if (tuple.Length != 0)
+                Vector3 currentHandPosition = GetHandCurrentWorldPosition();
+                Vector2 currentHandPosition2 = GetHandCurrentWorldPosition();
+                if (Vector3.Distance(currentHandPosition, lastHandPosition) < minHandMovement && currentHandPosition!= Vector3.zero)
                 {
-                    while (getPosition < 3)
+                    stabilityThreshold--;
+                    if (stabilityThreshold < 0)
                     {
-                        tuple = Sandbox.intDepthData.Select((depth, index) => new Tuple<int, int>(depth, index)).ToArray();
-                        tuple = tuple.Where(tupleTuple =>
-                            tupleTuple.Item1 > HandTresholdMin & tupleTuple.Item1 < HandTresholdMax).ToArray();
-                        if (tuple.Length != 0)
+                        Debug.Log("Stable hand detected, can drop water");
+                        //Vector3 handPosition = listAvgPoint[getPosition-1];
+                        int gestureID = nextGestureID;
+                        
+                        // Add detected hand to HandInput system
+                        if (enableHandInputIntegration)
                         {
-                            listAvgPoint[getPosition] = AveragePoint(tuple);
+                            HandInput.OnHandHovered(gestureID, currentHandPosition2);
+                            Debug.Log("Gesture ID: " + gestureID);
                         }
-                        getPosition++;
-                        yield return new WaitForSeconds(1/20.0f);
-                    }
-                    //Debug.Log(listAvgPoint[0]+ " " +listAvgPoint[1] + " " +listAvgPoint[2] );
-                    
-                    if (listAvgPoint.Length == getPosition)
-                        for (int i = 1; i < getPosition; i++)
+                        
+                        // Check if frame is frozen - store gesture instead of dropping water immediately
+                        if (FreezeFrame.isFrameFrozen)
                         {
-                            dist = +Vector3.Distance(listAvgPoint[i - 1], listAvgPoint[i]);
-
+                            //Sandbox.StoreGesture(currentHandPosition, gestureID);
                         }
+                        else
+                        {
+                            // Normal water drop when not frozen
+                            //DropWater(currentHandPosition);
+                        }
+                    }  
                 }
-                
-                if (dist >0 )
+                if(Vector3.Distance(currentHandPosition, lastHandPosition) > maxHandMovement)
                 {
-                    DropWater(listAvgPoint[getPosition-1]);
+                    CleanupOldGestures();
+                    stabilityThreshold = 60;
                 }
-                yield return new WaitForSeconds(1/60.0f);
+
+                lastHandPosition = currentHandPosition ;
+
+                yield return null;
             }
         }
     }

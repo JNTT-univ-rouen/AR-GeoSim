@@ -37,6 +37,7 @@
 // Data low pass compute shader
 // Inputs (sampler for downsample too)
 Texture2D RawDataRT;
+
 // This sampler actually works!
 SamplerState linearClampSampler;
 
@@ -66,6 +67,9 @@ void CS_LowPassData (uint3 id : SV_DispatchThreadID)
 	float sizeY = float(TEX_SIZE_LP_Y);
 
 	float2 texCoord = float2(id.x / sizeX, id.y / sizeY);
+
+
+
 	float depthVal = (float)RawDataRT.SampleLevel(linearClampSampler, texCoord, 0);
 
 	float depthRange = MAX_DEPTH - MIN_DEPTH;
@@ -221,6 +225,7 @@ void CS_GaussianBlurVertical (uint3 id : SV_DispatchThreadID)
 
 	BlurredDataRT[id.xy] = total;
 }
+
 // Generate Mesh compute shader
 // Inputs
 Texture2D<float> DataToMeshRT;
@@ -415,7 +420,6 @@ if (contourValue.y > 0.35) {
 		MaximalContourRT[id_int] = float4(0, 0, contourValue.z, 1);
 	}	
 }
-
 
 Texture2D<float4> MaximalContourInputRT;
 RWStructuredBuffer<int> ContourPathsBuffer;
