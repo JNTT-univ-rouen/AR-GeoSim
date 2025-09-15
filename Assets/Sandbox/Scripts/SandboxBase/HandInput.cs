@@ -32,9 +32,10 @@ namespace ARSandbox
         public Camera SandboxUICamera;
         public LayerMask SandboxLayerMask;
         public TestObject TestObject;
-
+        
+        public int maxDist ;
         private List<HandInputGesture> CurrentGestures;
-        //private SandboxDescriptor sandboxDescriptor;
+        private SandboxDescriptor sandboxDescriptor;
 
         public delegate void OnGesturesReady_Delegate();
         public static OnGesturesReady_Delegate OnGesturesReady;
@@ -58,7 +59,7 @@ namespace ARSandbox
         private void OnSandboxReady()
         {
             IsCalibrating = false;
-            //sandboxDescriptor = Sandbox.GetSandboxDescriptor();
+            sandboxDescriptor = Sandbox.GetSandboxDescriptor();
         }
 
         private void OnNewProcessedData()
@@ -111,6 +112,7 @@ namespace ARSandbox
                 Ray ray = SandboxUICamera.ViewportPointToRay(screenSpacePoint);
                 RaycastHit hitInfo;
                 bool meshHit = Physics.Raycast(ray, out hitInfo, 1000, SandboxLayerMask);
+                //bool meshHit = Physics.Raycast(ray, out hitInfo, maxDist, SandboxLayerMask);
                 if (meshHit)
                 {
                     depth = hitInfo.point.z / Sandbox.MESH_Z_SCALE - 5;
@@ -142,11 +144,115 @@ namespace ARSandbox
                 print("ERROR: Gesture with id: " + touchID.ToString() + " is missing!");
             }
         }
+        //Create a new hand gesture if does not exist
+        public void OnHandHovered(int touchID, Vector3 worldPosition)
+        {
+            if (!CurrentGestures.Exists((gesture) => gesture.GestureID == touchID))
+            {
+                Vector2 screenSpacePoint = SandboxUICamera.WorldToViewportPoint(worldPosition);
+                bool outOfBounds = false;
+                float depth = -1;
+                Ray ray = SandboxUICamera.ViewportPointToRay(screenSpacePoint);
+                RaycastHit hitInfo;
+                bool meshHit = Physics.Raycast(ray, out hitInfo, 1000, SandboxLayerMask);
+                if (meshHit)
+                {
+                    depth = hitInfo.point.z / Sandbox.MESH_Z_SCALE;
+                }
+                else
+                {
+                    outOfBounds = true;
+                }
+                worldPosition.z = depth * Sandbox.MESH_Z_SCALE - 5;
+                Point dataPosition = Sandbox.WorldPosToDataPos(worldPosition);
+                Vector2 normalisedPosition = Sandbox.WorldPosToNormalisedPos(worldPosition);
+
+                HandInputGesture newGesture = new HandInputGesture(touchID, worldPosition, normalisedPosition, depth, dataPosition, outOfBounds, false);
+
+                CurrentGestures.Add(newGesture);
+            }
+            else
+            {
+                print("ERROR: Gesture with id: " + touchID.ToString() + " already exists!");
+            }
+        }
+        //Update hand gesture position
+        public void OnHandMove(int touchID, Vector3 worldPosition)
+        {
+            HandInputGesture UIGesture = CurrentGestures.Find((gesture) => gesture.GestureID == touchID);
+            if (UIGesture != null)
+            {
+                Vector2 screenSpacePoint = SandboxUICamera.WorldToViewportPoint(worldPosition);
+                bool outOfBounds = false;
+                float depth = -1;
+                Ray ray = SandboxUICamera.ViewportPointToRay(screenSpacePoint);
+                RaycastHit hitInfo;
+                bool meshHit = Physics.Raycast(ray, out hitInfo, 1000, SandboxLayerMask);
+                if (meshHit)
+                {
+                    depth = hitInfo.point.z / Sandbox.MESH_Z_SCALE - 5;
+                }
+                else
+                {
+                    outOfBounds = true;
+                }
+                worldPosition.z = depth * Sandbox.MESH_Z_SCALE;
+                Point dataPosition = Sandbox.WorldPosToDataPos(worldPosition);
+                Vector2 normalisedPosition = Sandbox.WorldPosToNormalisedPos(worldPosition);
+
+                UIGesture.UpdatePosition(worldPosition, normalisedPosition, depth, dataPosition, outOfBounds);
+            }
+            else
+            {
+                print("ERROR: Gesture with id: " + touchID.ToString() + " is missing!");
+            }
+        }
+        public void OnHandOut(int touchID)
+        {
+            HandInputGesture UIGesture = CurrentGestures.Find((gesture) => gesture.GestureID == touchID);
+            if (UIGesture != null)
+            {
+                CurrentGestures.Remove(UIGesture);
+            }
+            else
+            {
+                print("ERROR: Gesture with id: " + touchID.ToString() + " is missing!");
+            }
+        }
 
         // Returns a shallow copy of gestures. List is safe to manipulate.
         public List<HandInputGesture> GetCurrentGestures()
         {
             return CurrentGestures.GetRange(0, CurrentGestures.Count);
+        }
+
+        /// <summary>
+        /// Adds a programmatically detected hand gesture to the CurrentGestures list
+        /// </summary>
+        public void AddDetectedHandGesture(HandInputGesture gesture)
+        {
+            if (!CurrentGestures.Exists((g) => g.GestureID == gesture.GestureID))
+            {
+                CurrentGestures.Add(gesture);
+                Debug.Log($"Added detected hand gesture with ID {gesture.GestureID} at position {gesture.WorldPosition}");
+            }
+            else
+            {
+                Debug.LogWarning($"Gesture with ID {gesture.GestureID} already exists!");
+            }
+        }
+
+        /// <summary>
+        /// Removes a gesture by ID (useful for cleanup)
+        /// </summary>
+        public void RemoveGesture(int gestureID)
+        {
+            HandInputGesture gesture = CurrentGestures.Find((g) => g.GestureID == gestureID);
+            if (gesture != null)
+            {
+                CurrentGestures.Remove(gesture);
+                Debug.Log($"Removed gesture with ID {gestureID}");
+            }
         }
     }
 

@@ -54,6 +54,7 @@ namespace ARSandbox
             Vector2 meshSize = sandbox.GetAdjustedMeshSize();
             float xPos = contourLabelProps.NormalisedPosition.x * meshSize.x + sandboxDescriptor.MeshStart.x;
             float yPos = contourLabelProps.NormalisedPosition.y * meshSize.y + sandboxDescriptor.MeshStart.y;
+            //Test avec ça
             float zPos = sandbox.GetDepthFromWorldPos(new Vector3(xPos, yPos));
             float rotation = contourLabelProps.Rotation;
 
@@ -61,6 +62,10 @@ namespace ARSandbox
             rotationQuaterion.eulerAngles = new Vector3(0, 0, rotation + 90);
 
             transform.position = new Vector3(xPos, yPos, zPos);
+            /*if (zPos < 360)
+            {
+                GameObject.CreatePrimitive(PrimitiveType.Sphere).transform.position = new Vector3(xPos, yPos, zPos+5);
+            }*/
             transform.rotation = rotationQuaterion;
         }
         private void UpdateMaskSize()

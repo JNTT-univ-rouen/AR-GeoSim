@@ -19,11 +19,11 @@
 //  along with sensilab-ar-sandbox.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-using System;
 using UnityEngine;
 using Windows.Kinect;
 
 namespace ARSandbox
+
 {
     public enum SandboxResolution
     {
@@ -56,7 +56,7 @@ namespace ARSandbox
         public Texture2D ColourScaleTexture;
         public SandboxDataCamera SandboxDataCamera;
         public TopographyLabelManager TopographyTextHandler;
-
+        public FreezeFrame FreezeFrame;
         public Vector2 MESH_XY_STRIDE_DS1 { get; private set; }
         public Vector2 MESH_XY_STRIDE_DS2 { get; private set; }
         public Vector2 MESH_XY_STRIDE_DS3 { get; private set; }
@@ -66,7 +66,7 @@ namespace ARSandbox
 
         [Range(0, 60)]
         public float LowPassHoldTime = 30.0f;
-
+        
         public float MajorContourSpacing { get; private set; }
         public int MinorContours { get; private set; }
         public float ContourThickness { get; private set; }
@@ -101,9 +101,9 @@ namespace ARSandbox
         private Vector3 meshStart = Vector3.zero;
         private bool setInitialLowPassData = true;
 
-        private Texture2D rawDepthsTex;
+        public Texture2D rawDepthsTex;
         private RenderTexture rawDepthsRT_DS, rawDepthsRT_DS2, rawDepthsRT_DS3;
-        private RenderTexture processedDepthsRT, processedDepthsRT_DS, 
+        public RenderTexture processedDepthsRT, processedDepthsRT_DS, 
                                   processedDepthsRT_DS2, processedDepthsRT_DS3;
         private RenderTexture internalLowPassDataRT, lowPassCounterRT, lowPassDataRT;
         private RenderTexture blurredDataTempRT, blurredDataDSTempRT, blurredDataDS2TempRT;
@@ -115,11 +115,13 @@ namespace ARSandbox
 
         private Texture TopographyLabelMaskTex;
 
-        private Vector3[] collMeshVertices;
+
+        public Vector3[] collMeshVertices;
         private int[] collMeshTris;
         private int colliderDelay = 0;
 
         private byte[] rawDepthData;
+        public int[] intDepthData; 
         public ushort[] depthDataBuffer { get; private set; }
 
         private void Start()
@@ -149,11 +151,16 @@ namespace ARSandbox
         {
             if (initialCalibrationComplete)
             {
+                // Always load new data (for hand detection, water simulation, etc.)
                 LoadData();
 
                 if (Input.GetKeyDown("="))
                 {
                     CalibrationManager.StartCalibration();
+                }
+                if (SandboxReady && FreezeFrame.enableFrameFreeze && Input.GetKeyDown(FreezeFrame.freezeFrameKey))
+                {
+                    ToggleFrameFreeze();
                 }
             }
         }
@@ -494,8 +501,11 @@ namespace ARSandbox
             int totalValues = calibrationDescriptor.TotalDataPoints;
 
             rawDepthData = new byte[totalValues * 2];
+            intDepthData = new int[totalValues];
             rawDepthsTex = new Texture2D(width, height, TextureFormat.R16, false);
             rawDepthsTex.filterMode = FilterMode.Bilinear;
+
+
 
             lowPassCounterRT = InitialiseDepthRT(calibrationDescriptor.DataSize);
             internalLowPassDataRT = InitialiseDepthRT(calibrationDescriptor.DataSize);
@@ -585,8 +595,25 @@ namespace ARSandbox
                 collMeshUV_Buffer.Release();
                 collMeshTris_Buffer.Release();
 
+                // Release frozen frame textures
+                if ( FreezeFrame.frozenDepthRT != null)
+                {
+                    FreezeFrame.frozenDepthRT.Release();
+                    FreezeFrame.frozenDepthRT = null;
+                }
+                if (FreezeFrame.frozenProcessedRT != null)
+                {
+                    FreezeFrame.frozenProcessedRT.Release();
+                    FreezeFrame.frozenProcessedRT = null;
+                }
+
                 colliderMesh.Clear();
             }
+        }
+        public void ToggleFrameFreeze()
+        {
+            if (FreezeFrame.isFrameFrozen) FreezeFrame.UnfreezeFrame();
+            else FreezeFrame.OnFreezeFrame(rawDepthsTex, processedDepthsRT);
         }
         private void CreateBoxColliders()
         {
@@ -632,7 +659,8 @@ namespace ARSandbox
 
                 rawDepthData[2 * i] = (byte)depthDataBuffer[index];
                 rawDepthData[2 * i + 1] = (byte)(depthDataBuffer[index] >> 8);
-
+                intDepthData[1 * i] = depthDataBuffer[index];
+                //intDepthData[2 * i + 1] = (depthDataBuffer[index] >> 8);
                 x += 1;
                 if (x >= dataEndX)
                 {
@@ -661,13 +689,51 @@ namespace ARSandbox
             {
                 depthDataBuffer = KinectManager.GetCurrentData();
                 UpdateRawTexture();
-                ProcessSandboxData();
+                
+                // Always process depth data (for hand detection, water simulation, etc.)
+                // But only update visual mesh if not frozen
+                if (!FreezeFrame.isFrameFrozen)
+                {
+                    ProcessSandboxData();
+                }
+                else
+                {
+                    // When frozen, still process the data but don't update the visual mesh
+                    // This keeps the depth data current for hand detection
+                    ProcessDepthDataOnly();
+                }
 
                 if (OnNewProcessedData != null) OnNewProcessedData();
             }
         }
         private void ProcessSandboxData()
         {
+            // If frame is frozen and we have a frozen frame, use it for mesh generation
+            if (FreezeFrame.isFrameFrozen && FreezeFrame.hasFrozenFrame)
+            {
+                // Use frozen processed data for mesh generation
+                switch(SandboxResolution)
+                {
+                    case SandboxResolution.Original:
+                        SandboxCSHelper.Run_GenerateSandboxMesh(SandboxProcessingShader, FreezeFrame.frozenProcessedRT, proceduralVertices_Buffer, proceduralUV_Buffer,
+                                                            meshStart, MESH_XY_STRIDE, MESH_Z_SCALE);
+                        break;
+                    case SandboxResolution.Downsampled_1x:
+                        SandboxCSHelper.Run_GenerateSandboxMesh(SandboxProcessingShader, FreezeFrame.frozenProcessedRT, proceduralVertices_DS_Buffer, proceduralUV_DS_Buffer,
+                                                            meshStart, MESH_XY_STRIDE_DS1, MESH_Z_SCALE);
+                        break;
+                    case SandboxResolution.Downsampled_2x:
+                        SandboxCSHelper.Run_GenerateSandboxMesh(SandboxProcessingShader, FreezeFrame.frozenProcessedRT, proceduralVertices_DS2_Buffer, proceduralUV_DS2_Buffer,
+                                                            meshStart, MESH_XY_STRIDE_DS2, MESH_Z_SCALE);
+                        break;
+                    case SandboxResolution.Downsampled_3x:
+                        SandboxCSHelper.Run_GenerateSandboxMesh(SandboxProcessingShader, FreezeFrame.frozenProcessedRT, proceduralVertices_DS3_Buffer, proceduralUV_DS3_Buffer,
+                                                            meshStart, MESH_XY_STRIDE_DS3, MESH_Z_SCALE);
+                        break;
+                }
+                return;
+            }
+
             if (SandboxResolution == SandboxResolution.RawData)
             {
                 // Create downsampled raw data
@@ -732,6 +798,7 @@ namespace ARSandbox
 
             if (colliderDelay == COLL_MESH_DELAY)
             {
+                
                 collMeshVertices_Buffer.GetData(collMeshVertices);
                 collMeshTris_Buffer.GetData(collMeshTris);
 
@@ -744,6 +811,80 @@ namespace ARSandbox
             else
             {
                 colliderDelay++;
+            }
+            
+        }
+        
+        // Get low-pass depth data for hand detection
+        public float[] GetLowPassDepthData()
+        {
+            if (lowPassDataRT == null || !SandboxReady)
+                return null;
+                
+            // Create a temporary RenderTexture to read from
+            RenderTexture tempRT = RenderTexture.GetTemporary(lowPassDataRT.width, lowPassDataRT.height, 0, RenderTextureFormat.RHalf);
+            Graphics.Blit(lowPassDataRT, tempRT);
+            
+            // Read the data
+            RenderTexture.active = tempRT;
+            Texture2D tempTex = new Texture2D(tempRT.width, tempRT.height, TextureFormat.RHalf, false);
+            tempTex.ReadPixels(new Rect(0, 0, tempRT.width, tempRT.height), 0, 0);
+            tempTex.Apply();
+            
+            // Convert to float array
+            Color[] pixels = tempTex.GetPixels();
+            float[] depthData = new float[pixels.Length];
+            
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                depthData[i] = pixels[i].r * 65535f; // Convert from 0-1 to 0-65535 range
+            }
+            
+            // Cleanup
+            RenderTexture.active = null;
+            RenderTexture.ReleaseTemporary(tempRT);
+            DestroyImmediate(tempTex);
+            
+            return depthData;
+        }
+        // Process depth data without updating visual mesh (for frozen frames)
+        private void ProcessDepthDataOnly()
+        {
+            if (SandboxResolution == SandboxResolution.RawData)
+            {
+                // For raw data, just update the raw texture
+                return;
+            }
+            else
+            {
+                // Create processed and downsampled depth data
+                Texture initialData = forcedTextureEnabled ? forcedTexture : rawDepthsTex;
+                if (setInitialLowPassData)
+                {
+                    setInitialLowPassData = false;
+                    SandboxCSHelper.Run_SetInitialLowPassData(SandboxProcessingShader, initialData,
+                        calibrationDescriptor.DataSize, internalLowPassDataRT, lowPassCounterRT,
+                        lowPassDataRT, calibrationDescriptor.MinDepth, calibrationDescriptor.MaxDepth);
+                }
+
+                SandboxCSHelper.Run_ComputeLowPassRT(SandboxProcessingShader, initialData,
+                    calibrationDescriptor.DataSize, internalLowPassDataRT, lowPassCounterRT, lowPassDataRT,
+                    ALPHA_1, ALPHA_2, calibrationDescriptor.MinDepth, calibrationDescriptor.MaxDepth,
+                    NoiseTolerance, LowPassHoldTime);
+
+                SandboxCSHelper.Run_BlurRT(SandboxProcessingShader, lowPassDataRT, blurredDataTempRT,
+                    processedDepthsRT);
+
+                SandboxCSHelper.Run_DownsampleRT(SandboxProcessingShader, processedDepthsRT, processedDepthsRT_DS);
+                SandboxCSHelper.Run_DownsampleRT(SandboxProcessingShader, processedDepthsRT_DS, processedDepthsRT_DS2);
+                SandboxCSHelper.Run_DownsampleRT(SandboxProcessingShader, processedDepthsRT_DS2, processedDepthsRT_DS3);
+
+                SandboxCSHelper.Run_BlurRT(SandboxProcessingShader, processedDepthsRT_DS, blurredDataDSTempRT,
+                    processedDepthsRT_DS);
+                SandboxCSHelper.Run_BlurRT(SandboxProcessingShader, processedDepthsRT_DS2, blurredDataDS2TempRT,
+                    processedDepthsRT_DS2);
+
+                // Don't generate mesh - just process the data
             }
         }
     }

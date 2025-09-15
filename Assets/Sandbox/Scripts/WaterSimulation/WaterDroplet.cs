@@ -65,7 +65,14 @@ namespace ARSandbox.WaterSimulation
             Vector3 newPosition = transform.position;
             newPosition.z = z;
             transform.position = newPosition;
-            waterDropletPhysics.transform.position = newPosition;
+            if (waterDropletPhysics is null)
+            {
+                waterDropletPhysics = Instantiate(WaterDropletPhysicsPrefab, newPosition, Quaternion.identity);
+            }
+            else
+            {
+                waterDropletPhysics.transform.position = newPosition;
+            }
         }
     }
 }

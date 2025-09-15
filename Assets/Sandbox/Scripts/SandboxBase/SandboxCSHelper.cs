@@ -72,6 +72,7 @@ namespace ARSandbox
             sandboxCS.SetTexture(kernelHandle, "InternalLowPassDataRT", internalLowPassDataRT);
             sandboxCS.SetTexture(kernelHandle, "LowPassCounterRT", lowPassCounterRT);
             sandboxCS.SetTexture(kernelHandle, "LowPassDataRT", lowPassDataRT);
+            
 
             int texSizeX = sandboxSize.x;
             int texSizeY = sandboxSize.y;
@@ -81,6 +82,7 @@ namespace ARSandbox
 
             float[] lowPassParams1 = new float[4] { minDepth, maxDepth, noiseTolerance, lowPassHoldTime };
             sandboxCS.SetFloats("LowPassParams1", lowPassParams1);
+            
 
             Point threadsToRun = ComputeShaderHelpers.CalculateThreadsToRun(new Point(texSizeX, texSizeY), CS_SQUARE_LAYOUT_16);
             sandboxCS.Dispatch(kernelHandle, threadsToRun.x, threadsToRun.y, 1);

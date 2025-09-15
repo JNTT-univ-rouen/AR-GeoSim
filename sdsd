@@ -1,0 +1,181 @@
+[33mcommit b439b48784e096272f619e1437153215d997e869[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mwater_activation_byhand[m[33m, [m[1;33mtag: [m[1;33mRelease_test[m[33m, [m[1;31morigin/water_activation_byhand[m[33m)[m
+Author: JNTT-univ-rouen <julien-erwan.niat-toundji-tchatchoua@univ-rouen.fr>
+Date:   Fri Jun 27 15:50:52 2025 +0200
+
+    Detection de la main plus précise
+    Distance de détection paramétrable
+
+[1mdiff --git a/Assets/Sandbox/Scripts/SandboxBase/HandInput.cs b/Assets/Sandbox/Scripts/SandboxBase/HandInput.cs[m
+[1mindex 1554302..0729eb6 100644[m
+[1m--- a/Assets/Sandbox/Scripts/SandboxBase/HandInput.cs[m
+[1m+++ b/Assets/Sandbox/Scripts/SandboxBase/HandInput.cs[m
+[36m@@ -144,15 +144,11 @@[m [mnamespace ARSandbox[m
+                 print("ERROR: Gesture with id: " + touchID.ToString() + " is missing!");[m
+             }[m
+         }[m
+[31m-[m
+[31m-        private void OnHandDetected()[m
+[31m-        {[m
+[31m-        }[m
+[32m+[m[41m        [m
+ [m
+         // Returns a shallow copy of gestures. List is safe to manipulate.[m
+         public List<HandInputGesture> GetCurrentGestures()[m
+         {[m
+[31m-            Debug.Log(CurrentGestures.Count.ToString());    [m
+             return CurrentGestures.GetRange(0, CurrentGestures.Count);[m
+         }[m
+     }[m
+[1mdiff --git a/Assets/Sandbox/Scripts/SandboxBase/Sandbox.cs b/Assets/Sandbox/Scripts/SandboxBase/Sandbox.cs[m
+[1mindex 92890b2..68a72bd 100644[m
+[1m--- a/Assets/Sandbox/Scripts/SandboxBase/Sandbox.cs[m
+[1m+++ b/Assets/Sandbox/Scripts/SandboxBase/Sandbox.cs[m
+[36m@@ -122,6 +122,7 @@[m [mnamespace ARSandbox[m
+         private int colliderDelay = 0;[m
+ [m
+         private byte[] rawDepthData;[m
+[32m+[m[32m        public int[] intDepthData;[m[41m [m
+         public ushort[] depthDataBuffer { get; private set; }[m
+ [m
+         private void Start()[m
+[36m@@ -496,6 +497,7 @@[m [mnamespace ARSandbox[m
+             int totalValues = calibrationDescriptor.TotalDataPoints;[m
+ [m
+             rawDepthData = new byte[totalValues * 2];[m
+[32m+[m[32m            intDepthData = new int[totalValues];[m
+             rawDepthsTex = new Texture2D(width, height, TextureFormat.R16, false);[m
+             rawDepthsTex.filterMode = FilterMode.Bilinear;[m
+ [m
+[36m@@ -634,6 +636,8 @@[m [mnamespace ARSandbox[m
+ [m
+                 rawDepthData[2 * i] = (byte)depthDataBuffer[index];[m
+                 rawDepthData[2 * i + 1] = (byte)(depthDataBuffer[index] >> 8);[m
+[32m+[m[32m                intDepthData[1 * i] = depthDataBuffer[index];[m
+[32m+[m[32m                //intDepthData[2 * i + 1] = (depthDataBuffer[index] >> 8);[m
+ [m
+                 x += 1;[m
+                 if (x >= dataEndX)[m
+[36m@@ -642,6 +646,8 @@[m [mnamespace ARSandbox[m
+                     y += 1;[m
+                 }[m
+             }[m
+[32m+[m[41m            [m
+[32m+[m
+ [m
+             rawDepthsTex.LoadRawTextureData(rawDepthData);[m
+             rawDepthsTex.Apply();[m
+[36m@@ -736,14 +742,6 @@[m [mnamespace ARSandbox[m
+             {[m
+                 [m
+                 collMeshVertices_Buffer.GetData(collMeshVertices);[m
+[31m-               /* Vector3[] listVect = new Vector3[50];[m
+[31m-                int indexVect = 0;[m
+[31m-                foreach( Vector3 vect in (collMeshVertices.Where(mesh => mesh.z < 370)))[m
+[31m-                {[m
+[31m-                    listVect[indexVect] = vect;[m
+[31m-                    indexVect++;[m
+[31m-                };[m
+[31m-                Debug.Log(listVect);*/[m
+                 collMeshTris_Buffer.GetData(collMeshTris);[m
+ [m
+                 colliderMesh.vertices = collMeshVertices;[m
+[1mdiff --git a/Assets/Sandbox/Scripts/WaterSimulation/WaterSimulation.cs b/Assets/Sandbox/Scripts/WaterSimulation/WaterSimulation.cs[m
+[1mindex 1566a6b..09f799e 100644[m
+[1m--- a/Assets/Sandbox/Scripts/WaterSimulation/WaterSimulation.cs[m
+[1m+++ b/Assets/Sandbox/Scripts/WaterSimulation/WaterSimulation.cs[m
+[36m@@ -24,6 +24,8 @@[m [musing System.Collections;[m
+ using System.Collections.Generic;[m
+ using System.Linq;[m
+ using System.Security.Policy;[m
+[32m+[m[32musing TMPro.SpriteAssetUtilities;[m
+[32m+[m[32musing UnityEditor.ShaderKeywordFilter;[m
+ using UnityEngine;[m
+ using UnityEngine.UI;[m
+ using Random = UnityEngine.Random;[m
+[36m@@ -59,6 +61,10 @@[m [mnamespace ARSandbox.WaterSimulation[m
+         public float WaterAbsorptionSpeed { get; private set; }[m
+         public Toggle WaterAbsorbtionToggle ;[m
+ [m
+[32m+[m[32m        public int HandTresholdMin{ get;  set; }[m
+[32m+[m[32m        public int HandTresholdMax{ get;  set; }[m
+[32m+[m[32m        private int[] handDepthData ;[m
+[32m+[m[41m        [m
+         private const int MaxMetaballs = 2000;[m
+ [m
+         void InitialiseSimulation()[m
+[36m@@ -73,6 +79,8 @@[m [mnamespace ARSandbox.WaterSimulation[m
+                 swapBuffers = false;[m
+                 [m
+                 WaterAbsorptionSpeed = 1.0f;[m
+[32m+[m[32m                HandTresholdMin = 800;[m
+[32m+[m[32m                HandTresholdMax = 1150;[m
+             }[m
+             initialised = true;[m
+         }[m
+[36m@@ -117,13 +125,15 @@[m [mnamespace ARSandbox.WaterSimulation[m
+             SetUpMetaballCamera();[m
+             MetaballCamera.gameObject.SetActive(true);[m
+             [m
+[32m+[m[32m            StartCoroutine(GetHandPositionCoroutine());[m
+             StartCoroutine(RunSimulationCoroutine = RunSimulation());[m
+[31m-            Debug.Log(this.WaterAbsorbtionToggle.isOn);[m
+[32m+[m
+         }[m
+ [m
+         private void Update()[m
+         {[m
+[31m-            HandWaterActivation();[m
+[32m+[m[32m            //if(Sandbox.SandboxReady)CheckTreshold();[m
+[32m+[m[32m            //if(Sandbox.SandboxReady)HandWaterActivation();[m
+         }[m
+ [m
+         void OnDisable()[m
+[36m@@ -157,7 +167,10 @@[m [mnamespace ARSandbox.WaterSimulation[m
+             SetUpMetaballCamera();[m
+             sandboxDescriptor = Sandbox.GetSandboxDescriptor();[m
+ [m
+[32m+[m[32m            StartCoroutine(GetHandPositionCoroutine());[m
+[32m+[m
+             StartCoroutine(RunSimulationCoroutine = RunSimulation());[m
+[32m+[m
+         }[m
+ [m
+         private void CreateWaterSurfaceRenderTextures()[m
+[36m@@ -303,18 +316,22 @@[m [mnamespace ARSandbox.WaterSimulation[m
+             metaballRT = new RenderTexture((int)(256.0f * aspectRatio), 256, 0);[m
+         }[m
+ [m
+[32m+[m[32m        private void DropWater(Vector3 position)[m
+[32m+[m[32m        {[m
+[32m+[m[32m            if (!Physics.CheckSphere(position + new Vector3(0, 0, -5), 1.0f))[m
+[32m+[m[32m            {[m
+[32m+[m[32m                WaterDroplet waterDroplet = Instantiate(WaterDroplet, position, Quaternion.identity);[m
+[32m+[m[32m                waterDroplet.SetShowMesh(showParticles);[m
+[32m+[m[32m                waterDroplets.Add(waterDroplet);[m
+[32m+[m[32m            }[m
+[32m+[m[32m        }[m
+         private void OnGesturesReady()[m
+         {[m
+             foreach (HandInputGesture gesture in HandInput.GetCurrentGestures())[m
+             {[m
+                 if (!gesture.OutOfBounds)[m
+                 {[m
+[31m-                    if (!Physics.CheckSphere(gesture.WorldPosition + new Vector3(0, 0, -5), 1.0f))[m
+[31m-                    {[m
+[31m-                        WaterDroplet waterDroplet = Instantiate(WaterDroplet, gesture.WorldPosition, Quaternion.identity);[m
+[31m-                        waterDroplet.SetShowMesh(showParticles);[m
+[31m-                        waterDroplets.Add(waterDroplet);[m
+[31m-                    }[m
+[32m+[m[32m                    DropWater(gesture.WorldPosition);[m
+                 }[m
+             }[m
+         }[m
+[36m@@ -387,6 +404,149 @@[m [mnamespace ARSandbox.WaterSimulation[m
+                 }[m
+             }[m
+         }[m
+[31m-        [m
+[32m+[m
+[32m+[m[32m        private void CheckTreshold()[m
+[32m+[m[32m        {[m
+[32m+[m[32m    
