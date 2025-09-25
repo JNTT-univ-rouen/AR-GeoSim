@@ -83,6 +83,8 @@ namespace ARSandbox.WaterSimulation
         private int stabilityThreshold = 60;
         
         private const int MaxMetaballs = 2000;
+        
+
 
 
         void InitialiseSimulation()
@@ -101,6 +103,11 @@ namespace ARSandbox.WaterSimulation
                 HandTresholdMax = 1150;
             }
             initialised = true;
+        }
+
+         private void OnPreRender()
+        {
+
         }
 
         IEnumerator RunSimulation()
@@ -134,7 +141,7 @@ namespace ARSandbox.WaterSimulation
         void OnEnable()
         {
             InitialiseSimulation();
-
+            
             HandInput.OnGesturesReady += OnGesturesReady;
             CalibrationManager.OnCalibration += OnCalibration;
             Sandbox.OnSandboxReady += OnSandboxReady;
@@ -151,6 +158,7 @@ namespace ARSandbox.WaterSimulation
 
         void OnDisable()
         {
+            
             HandInput.OnGesturesReady -= OnGesturesReady;
             CalibrationManager.OnCalibration -= OnCalibration;
             Sandbox.OnSandboxReady -= OnSandboxReady;
@@ -168,6 +176,7 @@ namespace ARSandbox.WaterSimulation
             MetaballCamera.gameObject.SetActive(false);
             DestroyWaterDroplets();
             Sandbox.SetDefaultShader();
+            Sandbox.SetRenderMaterial(SandboxRenderMaterial.Normal);
 
             StopCoroutine(RunSimulationCoroutine);
         }
