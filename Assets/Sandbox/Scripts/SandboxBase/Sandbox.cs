@@ -246,39 +246,13 @@ namespace ARSandbox
             this.sandboxRenderMaterial = sandboxRenderMaterial;
         }
 
-        public void SetBlackAndWhiteTwoToneTint(Color tintA, float strengthA, Color tintB, float strengthB, float splitPosition01, bool splitVertical, float splitFeather)
-        {
-            if (BlackAndWhiteMaterial == null)
-            {
-                return;
-            }
-
-            BlackAndWhiteMaterial.SetColor("_TintA", tintA);
-            BlackAndWhiteMaterial.SetFloat("_TintStrengthA", Mathf.Clamp01(strengthA));
-            BlackAndWhiteMaterial.SetColor("_TintB", tintB);
-            BlackAndWhiteMaterial.SetFloat("_TintStrengthB", Mathf.Clamp01(strengthB));
-            BlackAndWhiteMaterial.SetFloat("_SplitPosition", Mathf.Clamp01(splitPosition01));
-            BlackAndWhiteMaterial.SetFloat("_SplitVertical", splitVertical ? 1.0f : 0.0f);
-            BlackAndWhiteMaterial.SetFloat("_SplitFeather", Mathf.Clamp(splitFeather, 0.0f, 0.25f));
-        }
-
         public void SetSandboxShader(Shader sandboxShader)
         {
-            if (sandboxShader == BlackAndWhiteMaterial.shader)
-            {
-                ExampleBlackAndWhiteTwoToneTint();
-            }
             NormalMaterial.shader = sandboxShader;
             UsingCustomShader = true;
-            //SetShaderProperties(NormalMaterial);
+            SetShaderProperties(NormalMaterial);
         }
-        private void ExampleBlackAndWhiteTwoToneTint()
-        {
-            var green = new Color(0.75f, 1.00f, 0.75f, 1f);   // left half
-            var yellow = new Color(1.00f, 0.90f, 0.60f, 1f);  // right half
 
-            SetBlackAndWhiteTwoToneTint(green, 0.18f, yellow, 0.18f, 0.5f, true, 0.02f);
-        }
         public void SetShaderTexture(string textureName, Texture texture)
         {
             NormalMaterial.SetTexture(textureName, texture);

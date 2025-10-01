@@ -56,6 +56,7 @@ namespace ARSandbox.WaterSimulation
 
         private IEnumerator RunSimulationCoroutine;
         private bool initialised;
+		private bool waterActive;
         
         private IEnumerator RunAbsorptionCoroutine;
         private bool _soilAbsorptionActive;
@@ -94,6 +95,7 @@ namespace ARSandbox.WaterSimulation
                 waterDroplets = new List<WaterDroplet>();
                 currSubsection = 0;
                 showParticles = false;
+				waterActive = true;
 
                 CreateWaterSurfaceRenderTextures();
                 swapBuffers = false;
@@ -104,16 +106,12 @@ namespace ARSandbox.WaterSimulation
             }
             initialised = true;
         }
-
-         private void OnPreRender()
-        {
-
-        }
-
+        
         IEnumerator RunSimulation()
         {
             while (true)
             {
+				
                 CullStrayMetaballs();
 
                 KeepMetaballsAboveSandbox();
@@ -338,6 +336,10 @@ namespace ARSandbox.WaterSimulation
 
         public void DropWater(Vector3 position)
         {
+			if (!waterActive)
+			{
+				return;
+			}
             if (!Physics.CheckSphere(position + new Vector3(0, 0, -5), 1.0f))
             {
                 WaterDroplet waterDroplet = Instantiate(WaterDroplet, position, Quaternion.identity);
@@ -506,13 +508,14 @@ namespace ARSandbox.WaterSimulation
             }
 
         }
+		public void UI_ToggleWater(bool isActive)
+		{
+			waterActive = isActive;
+		}
         public void UI_SetWaterAbsorptionSpeed(float waterSpeedMultiplier)
         {
             WaterAbsorptionSpeed = 1/waterSpeedMultiplier;
         }
-        
-
-
         
         
         private Vector3 GetHandCurrentWorldPosition()

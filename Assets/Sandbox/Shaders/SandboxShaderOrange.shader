@@ -74,10 +74,23 @@ Shader "Unlit/SandboxShaderOrange"
 				fixed4 textColor = (1 - contourMapFrag.textIntensity) * fixed4(1, 1, 1, 1) +
 					contourMapFrag.textIntensity * fixed4(0, 0, 0, 1);
 
-				// Base land color: orange-tinted white
+				// Base land color: 8 orange bands by height (higher = darker)
 				fixed4 baseColor = fixed4(1, 1, 1, 1);
-				float3 orange = float3(1.0, 0.6, 0.0);
-				baseColor.rgb = baseColor.rgb * orange;
+				float h = saturate(contourMapFrag.normalisedHeight);
+				int band = (int)floor(h * 8.0);
+				band = clamp(band, 0, 7);
+				float3 o0 = float3(1.00, 0.95, 0.82); // add red, trim green
+				float3 o1 = float3(1.00, 0.89, 0.60);
+				float3 o2 = float3(1.00, 0.82, 0.45);
+				float3 o3 = float3(1.00, 0.75, 0.28);
+				float3 o4 = float3(1.00, 0.69, 0.16);
+				float3 o5 = float3(0.96, 0.59, 0.10);
+				float3 o6 = float3(0.88, 0.49, 0.07);
+				float3 o7 = float3(0.78, 0.41, 0.06); // highest (darkest)
+				float3 landOrange = band == 0 ? o0 : (band == 1 ? o1 : (band == 2 ? o2 : (band == 3 ? o3 : (band == 4 ? o4 : (band == 5 ? o5 : (band == 6 ? o6 : o7))))));
+				// Add a subtle red boost before darkening
+				float3 redBoost = float3(1.12, 0.98, 0.94);
+				baseColor.rgb = saturate(landOrange * redBoost) * 0.85; // darken by 20%
 
 				// Metaball/water overlay
 				float metaballValue = tex2D(_MetaballTex, i.uv_MetaballTex).r;
