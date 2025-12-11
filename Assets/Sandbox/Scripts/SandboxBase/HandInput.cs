@@ -75,6 +75,7 @@ namespace ARSandbox
             if (!CurrentGestures.Exists((gesture) => gesture.GestureID == touchID))
             {
                 Vector3 worldPosition = SandboxUICamera.ViewportToWorldPoint(new Vector3(screenSpacePoint.x, screenSpacePoint.y));
+                Debug.Log("worldPosition: " + worldPosition);
                 bool outOfBounds = false;
                 float depth = -1;
                 Ray ray = SandboxUICamera.ViewportPointToRay(screenSpacePoint);
@@ -150,6 +151,7 @@ namespace ARSandbox
             if (!CurrentGestures.Exists((gesture) => gesture.GestureID == touchID))
             {
                 Vector2 screenSpacePoint = SandboxUICamera.WorldToViewportPoint(worldPosition);
+                Debug.Log("Hand - screenSpacePoint: " + worldPosition);
                 bool outOfBounds = false;
                 float depth = -1;
                 Ray ray = SandboxUICamera.ViewportPointToRay(screenSpacePoint);
@@ -173,7 +175,7 @@ namespace ARSandbox
             }
             else
             {
-                print("ERROR: Gesture with id: " + touchID.ToString() + " already exists!");
+                //print("ERROR: Gesture with id: " + touchID.ToString() + " already exists!");
             }
         }
         //Update hand gesture position
@@ -251,7 +253,7 @@ namespace ARSandbox
             if (gesture != null)
             {
                 CurrentGestures.Remove(gesture);
-                Debug.Log($"Removed gesture with ID {gestureID}");
+                //Debug.Log($"Removed gesture with ID {gestureID}");
             }
         }
     }

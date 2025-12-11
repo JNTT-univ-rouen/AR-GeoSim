@@ -79,16 +79,20 @@ Shader "Unlit/SandboxShaderGreen"
 				float h = saturate(contourMapFrag.normalisedHeight);
 				int band = (int)floor(h * 8.0);
 				band = clamp(band, 0, 7);
-				float3 g0 = float3(0.88, 0.98, 0.88); // lowest (lightest)
-				float3 g1 = float3(0.78, 0.92, 0.78);
-				float3 g2 = float3(0.66, 0.84, 0.66);
-				float3 g3 = float3(0.50, 0.70, 0.50);
-				float3 g4 = float3(0.38, 0.58, 0.38);
-				float3 g5 = float3(0.26, 0.46, 0.26);
-				float3 g6 = float3(0.20, 0.38, 0.20);
-				float3 g7 = float3(0.14, 0.30, 0.14); // highest (darkest)
-				float3 landGreen = band == 0 ? g0 : (band == 1 ? g1 : (band == 2 ? g2 : (band == 3 ? g3 : (band == 4 ? g4 : (band == 5 ? g5 : (band == 6 ? g6 : g7))))));
-				baseColor.rgb = landGreen * 0.85; // darken by 15%
+				//Ajouter du vert
+				float3 g0 = float3(0.20, 0.64, 0.37); // lowest (lightest)
+				//float3 g1 = float3(0.78, 0.92, 0.78);
+				//float3 g2 = float3(0.66, 0.84, 0.66);
+				//float3 g3 = float3(0.50, 0.70, 0.50);
+				//float3 g4 = float3(0.38, 0.58, 0.38);
+				//float3 g5 = float3(0.26, 0.46, 0.26);
+				//float3 g6 = float3(0.20, 0.38, 0.20);
+				//float3 g7 = float3(0.14, 0.30, 0.14); // highest (darkest)
+				//float3 landGreen = band == 0 ? g0 : (band == 1 ? g1 : (band == 2 ? g2 : (band == 3 ? g3 : (band == 4 ? g4 : (band == 5 ? g5 : (band == 6 ? g6 : g7))))));
+				float3 landGreen = band == 0 ? g0 : (band == 1 ? g0 : (band == 2 ? g0 : (band == 3 ? g0 : (band == 4 ? g0 : (band == 5 ? g0 : (band == 6 ? g0 : g0))))));
+
+				//baseColor.rgb = landGreen * 0.85; // darken by 15%
+				baseColor.rgb = landGreen * 1; // darken by 0%
 				
 				// Metaball/water overlay
 				float metaballValue = tex2D(_MetaballTex, i.uv_MetaballTex).r;
