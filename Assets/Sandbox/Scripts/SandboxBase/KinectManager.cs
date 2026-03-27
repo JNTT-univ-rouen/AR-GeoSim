@@ -37,9 +37,22 @@ namespace ARSandbox
         private FrameDescription kinectFrameDesc;
         private KinectSensor kinectSensor;
         private DepthFrameReader depthFrameReader;
+        private ColorFrameReader colorFrameReader;
+        private InfraredFrameReader infraredFrameReader;
         private ushort[] depthData;
         private bool dataReady = false;
         private bool newData = false;
+        
+        //Infrared frame data
+        private FrameDescription infraredFrameDesc;
+        private ushort[] infraredData;
+        private Texture2D infraredTexture;
+
+        // Color frame data
+        private FrameDescription colorFrameDesc;
+        private byte[] colorData;           // BGRA32 byte buffer
+        private bool newColorData = false;
+        private Texture2D colorTexture;     // Convenience texture for saving / previewing
 
         void Start()
         {
@@ -75,6 +88,50 @@ namespace ARSandbox
                         newData = true;
                         frame.Dispose();
                         frame = null;
+                    }
+                }
+
+                if (infraredFrameReader != null)
+                {
+                    InfraredFrame infraredFrame = infraredFrameReader.AcquireLatestFrame();
+                    if (infraredFrame != null)
+                    {
+                        infraredFrame.CopyFrameDataToArray(infraredData);
+                        infraredFrame.Dispose();
+                        infraredFrame = null;
+                    }
+                }
+
+                // Also grab the latest color frame each Update (for freeze-frame capture)
+                if (colorFrameReader != null)
+                {
+                    ColorFrame colorFrame = colorFrameReader.AcquireLatestFrame();
+                    if (colorFrame != null)
+                    {
+                        if (colorFrameDesc == null)
+                        {
+                            colorFrameDesc = colorFrame.FrameDescription;
+                        }
+
+                        if (colorData == null)
+                        {
+                            int length = colorFrameDesc.Width * colorFrameDesc.Height * 4; // BGRA32
+                            colorData = new byte[length];
+                        }
+
+                        colorFrame.CopyConvertedFrameDataToArray(colorData, ColorImageFormat.Bgra);
+                        newColorData = true;
+
+                        if (colorTexture == null)
+                        {
+                            colorTexture = new Texture2D(colorFrameDesc.Width, colorFrameDesc.Height, TextureFormat.BGRA32, false);
+                        }
+
+                        //colorTexture.LoadRawTextureData(colorData);
+                        //colorTexture.Apply();
+
+                        colorFrame.Dispose();
+                        colorFrame = null;
                     }
                 }
 
@@ -134,6 +191,26 @@ namespace ARSandbox
             return depthData;
         }
 
+        public ushort[] GetCurrentInfraredData()
+        {
+            newData = false;
+            return infraredData;
+        }
+
+        // --- Color helpers for freeze-frame capture ---
+
+        public bool NewColorDataReady()
+        {
+            return newColorData;
+        }
+
+        // Returns the latest color Texture2D (BGRA32), or null if none yet.
+        public Texture2D GetCurrentColorTexture()
+        {
+            newColorData = false;
+            return colorTexture;
+        }
+
         public bool StreamStarted()
         {
             if (UseSavedData)
@@ -172,7 +249,12 @@ namespace ARSandbox
                 }
 
                 depthFrameReader = kinectSensor.DepthFrameSource.OpenReader();
+                infraredFrameReader = kinectSensor.InfraredFrameSource.OpenReader();
                 depthData = new ushort[kinectSensor.DepthFrameSource.FrameDescription.LengthInPixels];
+                infraredData = new ushort[kinectSensor.InfraredFrameSource.FrameDescription.LengthInPixels];
+
+                // Set up color reader for per-frame color data
+                colorFrameReader = kinectSensor.ColorFrameSource.OpenReader();
             }
         }
 

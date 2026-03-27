@@ -21,6 +21,7 @@
 
 using System.Collections;
 using System.Collections.Generic;
+using Sandbox.Scripts.ServerClient;
 using UnityEngine;
 
 namespace ARSandbox
@@ -33,6 +34,7 @@ namespace ARSandbox
         public FireSimulation.FireSimulation FireSimulation;
         public TopographyBuilder.TopographyBuilder TopographyBuilder;
         public WindSimulation.WindSimulation WindSimulation;
+        public SandboxClient SandboxClient;
 
         private GameObject CurrentMode;
 
@@ -60,6 +62,11 @@ namespace ARSandbox
         {
             FireSimulation.gameObject.SetActive(true);
             CurrentMode = FireSimulation.gameObject;
+        }
+        public void EnableServer()
+        {
+            SandboxClient.gameObject.SetActive(true);
+            CurrentMode = SandboxClient.gameObject;
         }
         public void DisableCurrentMode()
         {

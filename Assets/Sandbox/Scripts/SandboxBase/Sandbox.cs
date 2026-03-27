@@ -118,7 +118,7 @@ namespace ARSandbox
 
         public Vector3[] collMeshVertices;
         private int[] collMeshTris;
-        private int colliderDelay = 0;
+        private int colliderDelay;
 
         private byte[] rawDepthData;
         public int[] intDepthData; 
@@ -315,7 +315,7 @@ namespace ARSandbox
         }
         public void UI_ChangeDynamicLabelColouring(bool dynamicLabelColouring)
         {
-            this.DynamicLabelColouring = dynamicLabelColouring;
+            DynamicLabelColouring = dynamicLabelColouring;
         }
         public void UI_ChangeResolution(float resolution)
         {
@@ -384,16 +384,16 @@ namespace ARSandbox
             switch (SandboxResolution)
             {
                 case SandboxResolution.Downsampled_1x:
-                    meshWidth = sandboxDescriptor.MeshWidth - sandboxDescriptor.MeshWidth / (float)(calibrationDescriptor.DataSize_DS.x);
-                    meshHeight = sandboxDescriptor.MeshHeight - sandboxDescriptor.MeshHeight / (float)(calibrationDescriptor.DataSize_DS.y);
+                    meshWidth = sandboxDescriptor.MeshWidth - sandboxDescriptor.MeshWidth / calibrationDescriptor.DataSize_DS.x;
+                    meshHeight = sandboxDescriptor.MeshHeight - sandboxDescriptor.MeshHeight / calibrationDescriptor.DataSize_DS.y;
                     break;
                 case SandboxResolution.Downsampled_2x:
-                    meshWidth = sandboxDescriptor.MeshWidth - sandboxDescriptor.MeshWidth / (float)(calibrationDescriptor.DataSize_DS2.x);
-                    meshHeight = sandboxDescriptor.MeshHeight - sandboxDescriptor.MeshHeight / (float)(calibrationDescriptor.DataSize_DS2.y);
+                    meshWidth = sandboxDescriptor.MeshWidth - sandboxDescriptor.MeshWidth / calibrationDescriptor.DataSize_DS2.x;
+                    meshHeight = sandboxDescriptor.MeshHeight - sandboxDescriptor.MeshHeight / calibrationDescriptor.DataSize_DS2.y;
                     break;
                 case SandboxResolution.Downsampled_3x:
-                    meshWidth = sandboxDescriptor.MeshWidth - sandboxDescriptor.MeshWidth / (float)(calibrationDescriptor.DataSize_DS3.x);
-                    meshHeight = sandboxDescriptor.MeshHeight - sandboxDescriptor.MeshHeight / (float)(calibrationDescriptor.DataSize_DS3.y);
+                    meshWidth = sandboxDescriptor.MeshWidth - sandboxDescriptor.MeshWidth / calibrationDescriptor.DataSize_DS3.x;
+                    meshHeight = sandboxDescriptor.MeshHeight - sandboxDescriptor.MeshHeight / calibrationDescriptor.DataSize_DS3.y;
                     break;
                 default:
                     meshWidth = sandboxDescriptor.MeshWidth;
@@ -486,9 +486,9 @@ namespace ARSandbox
 
             float meshWidth = sandboxDescriptor.MeshWidth;
             float meshHeight = sandboxDescriptor.MeshHeight;
-            MESH_XY_STRIDE_DS1 = new Vector2(meshWidth / (float)(calibrationDescriptor.DataSize_DS.x - 1), meshHeight / (float)(calibrationDescriptor.DataSize_DS.y - 1));
-            MESH_XY_STRIDE_DS2 = new Vector2(meshWidth / (float)(calibrationDescriptor.DataSize_DS2.x - 1), meshHeight / (float)(calibrationDescriptor.DataSize_DS2.y - 1));
-            MESH_XY_STRIDE_DS3 = new Vector2(meshWidth / (float)(calibrationDescriptor.DataSize_DS3.x - 1), meshHeight / (float)(calibrationDescriptor.DataSize_DS3.y - 1));
+            MESH_XY_STRIDE_DS1 = new Vector2(meshWidth / (calibrationDescriptor.DataSize_DS.x - 1), meshHeight / (calibrationDescriptor.DataSize_DS.y - 1));
+            MESH_XY_STRIDE_DS2 = new Vector2(meshWidth / (calibrationDescriptor.DataSize_DS2.x - 1), meshHeight / (calibrationDescriptor.DataSize_DS2.y - 1));
+            MESH_XY_STRIDE_DS3 = new Vector2(meshWidth / (calibrationDescriptor.DataSize_DS3.x - 1), meshHeight / (calibrationDescriptor.DataSize_DS3.y - 1));
 
             ResizeBoxColliders();
 
@@ -614,7 +614,95 @@ namespace ARSandbox
         public void ToggleFrameFreeze()
         {
             if (FreezeFrame.isFrameFrozen) FreezeFrame.UnfreezeFrame();
-            else FreezeFrame.OnFreezeFrame(rawDepthsTex, processedDepthsRT);
+            else
+            {
+                var path = Application.dataPath + "/../RawDepths.png";
+                /*var values = rawDepthsTex.GetPixels();
+                var colors = new Color32[values.Length];
+                for (int i = 0; i < values.Length; i++)
+                {
+                    byte g = (byte)Mathf.Clamp(Mathf.RoundToInt(values[i].r * 255f), 0, 255);
+                    colors[i] = new Color32(g, g, g, 255); // alpha 255 so it’s visible
+                }
+
+                rawDepthsTex.SetPixels32(colors);
+                rawDepthsTex.Apply();
+                byte[] bytes = rawDepthsTex.EncodeToPNG();
+                File.WriteAllBytes(Application.dataPath+"/../RawDepths.png", bytes);
+                FreezeFrame.OnFreezeFrame(rawDepthsTex, processedDepthsRT);*/
+                
+                
+                int startX = calibrationDescriptor.DataStart.x;
+                int startY = calibrationDescriptor.DataStart.y;
+                int endX   = calibrationDescriptor.DataEnd.x;   // exclusive
+                int endY   = calibrationDescriptor.DataEnd.y;   // exclusive
+                int width  = endX - startX;
+                int height = endY - startY;
+
+                float minDepth = calibrationDescriptor.MinDepth; // e.g. 800
+                float maxDepth = calibrationDescriptor.MaxDepth; // e.g. 1400
+                float depthRange = maxDepth - minDepth;
+                
+
+                Color32[] colors = new Color32[width * height];
+                
+                for (int i = 0; i < width*height; i++)
+                {
+                    // Use intDepthData[i] directly - it's already the cropped value!
+                    float normalizedValue = (intDepthData[i] - minDepth) / depthRange;
+                    normalizedValue = Mathf.Clamp01(normalizedValue);
+    
+                    // Invert: higher depth = darker
+                    float invertedValue = 1f - normalizedValue;
+    
+                    byte g = (byte)Mathf.RoundToInt(invertedValue * 255f);
+                    colors[i] = new Color32(g, g, g, 255);
+                }
+                
+                var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                tex.SetPixels32(colors);
+                tex.Apply();
+                byte[] png = tex.EncodeToPNG();
+                File.WriteAllBytes(path, png);
+
+                // Also capture the sandbox area of the current color frame to ../ColorDepth.png (if available)
+                if (KinectManager != null)
+                {
+                    Texture2D fullColorTex = KinectManager.GetCurrentColorTexture();
+                    if (fullColorTex != null && kinectFrameDesc != null)
+                    {
+                        int depthFrameWidth = kinectFrameDesc.Width;
+                        int depthFrameHeight = kinectFrameDesc.Height;
+
+                        // Create a color texture matching the sandbox (depth) area dimensions
+                        var colorSandboxTex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+
+                        for (int y = 0; y < height; y++)
+                        {
+                            for (int x = 0; x < width; x++)
+                            {
+                                // Map sandbox/depth-space coordinates into normalized depth space
+                                float depthX = startX + x;
+                                float depthY = startY + y;
+                                float u = depthX / (float)depthFrameWidth;
+                                float v = depthY / (float)depthFrameHeight;
+
+                                // Sample from the full color frame using bilinear filtering
+                                Color c = fullColorTex.GetPixelBilinear(u, v);
+                                colorSandboxTex.SetPixel(x, y, c);
+                            }
+                        }
+
+                        colorSandboxTex.Apply();
+
+                        var colorPath = Application.dataPath + "/../ColorDepth.png";
+                        byte[] colorPng = colorSandboxTex.EncodeToPNG();
+                        File.WriteAllBytes(colorPath, colorPng);
+                    }
+                }
+
+                //FreezeFrame.OnFreezeFrame(rawDepthsTex, processedDepthsRT);
+            }
         }
         private void CreateBoxColliders()
         {
