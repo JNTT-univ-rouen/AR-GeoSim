@@ -44,6 +44,7 @@ namespace ARSandbox
         public GameObject UI_WindSimulationMenu;
         public GameObject UI_CalibrationExitButton;
         public GameObject UI_ServerMenu;
+        public GameObject UI_MiniServerMenu;
 
         public Text UI_MenuTitle;
         public GameObject UI_MenuTitlePanel;
@@ -84,6 +85,7 @@ namespace ARSandbox
             UI_WindSimulationMenu.SetActive(false);
             UI_CalibrationExitButton.SetActive(false);
             UI_ServerMenu.SetActive(false);
+            UI_MiniServerMenu.SetActive(false);
 
             CalibrationManager.OnCalibration += OnCalibration;
             CalibrationManager.OnCalibrationComplete += OnCalibrationComplete;
@@ -93,6 +95,7 @@ namespace ARSandbox
 
         private void OpenMenu(GameObject newActiveMenu)
         {
+            if(activeMenu == UI_WaterSimulation) UI_MiniServerMenu.SetActive(false);
             activeMenu.SetActive(false);
             newActiveMenu.SetActive(true);
             activeMenu = newActiveMenu;
@@ -109,7 +112,9 @@ namespace ARSandbox
                 UI_CalibrationExitButton.GetComponentInChildren<Button>().onClick.AddListener(OpenMainMenu);
                 UI_CalibrationExitButton.GetComponentInChildren<Button>().onClick.AddListener(ModeSelector.DisableCurrentMode);
                 UI_CalibrationExitButton.GetComponentInChildren<Text>().text = "Exit Simulation";
+                
             }
+            
         }
 
         public void OpenWindSimulation()
@@ -134,6 +139,7 @@ namespace ARSandbox
         {
             UI_MenuTitle.text = "Water Simulation";
             OpenMenu(UI_WaterSimulation);
+            UI_MiniServerMenu.SetActive(true);
         }
 
         public void OpenFireSimulation()
@@ -146,7 +152,7 @@ namespace ARSandbox
         {
             UI_MenuTitle.text = "Server Client";
             OpenMenu(UI_ServerMenu);
-        }
+        } 
 
         public void OpenMainMenu()
         {

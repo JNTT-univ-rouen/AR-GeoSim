@@ -36,7 +36,7 @@ namespace ARSandbox
         public WindSimulation.WindSimulation WindSimulation;
         public SandboxClient SandboxClient;
 
-        private GameObject CurrentMode;
+        public GameObject CurrentMode;
 
         public void EnableWindSimulation()
         {
@@ -57,6 +57,8 @@ namespace ARSandbox
         {
             WaterSimulation.gameObject.SetActive(true);
             CurrentMode = WaterSimulation.gameObject;
+            SandboxClient.gameObject.SetActive(true);
+            
         }
         public void EnableFireSimulation()
         {
@@ -71,6 +73,7 @@ namespace ARSandbox
         public void DisableCurrentMode()
         {
             if (CurrentMode != null) CurrentMode.gameObject.SetActive(false);
+            if (CurrentMode == WaterSimulation.gameObject) SandboxClient.gameObject.SetActive(false);
         }
         public void EnableCurrentMode()
         {

@@ -19,6 +19,9 @@
 //  along with sensilab-ar-sandbox.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+using System.Drawing.Imaging;
+using System.IO;
+using System.Net;
 using UnityEngine;
 using Windows.Kinect;
 
@@ -101,6 +104,7 @@ namespace ARSandbox
         private Vector3 meshStart = Vector3.zero;
         private bool setInitialLowPassData = true;
 
+        public Texture2D rawInfraredTex;
         public Texture2D rawDepthsTex;
         private RenderTexture rawDepthsRT_DS, rawDepthsRT_DS2, rawDepthsRT_DS3;
         public RenderTexture processedDepthsRT, processedDepthsRT_DS, 
@@ -121,9 +125,30 @@ namespace ARSandbox
         private int colliderDelay;
 
         private byte[] rawDepthData;
+        private byte[] rawInfraredData;
         public int[] intDepthData; 
         public ushort[] depthDataBuffer { get; private set; }
+        public ushort[] infraredDataBuffer { get; private set; }
 
+        public RenderTexture CurrentProcessedRT
+        {
+            get
+            {
+             switch (SandboxResolution)
+             {
+                 case SandboxResolution.Original:
+                     return processedDepthsRT;
+                 case SandboxResolution.Downsampled_1x:
+                     return processedDepthsRT_DS;
+                 case SandboxResolution.Downsampled_2x:
+                     return processedDepthsRT_DS2;
+                 case SandboxResolution.Downsampled_3x:
+                     return processedDepthsRT_DS3;
+                 default:
+                     return processedDepthsRT;
+             }   
+            }
+        }
         private void Start()
         {
             meshRenderer = GetComponent<MeshRenderer>();
@@ -161,6 +186,11 @@ namespace ARSandbox
                 if (SandboxReady && FreezeFrame.enableFrameFreeze && Input.GetKeyDown(FreezeFrame.freezeFrameKey))
                 {
                     ToggleFrameFreeze();
+                }
+
+                if (Input.GetKeyDown(KeyCode.KeypadPlus))
+                {
+                    InfraredPicture();
                 }
             }
         }
@@ -502,9 +532,12 @@ namespace ARSandbox
             int totalValues = calibrationDescriptor.TotalDataPoints;
 
             rawDepthData = new byte[totalValues * 2];
+            rawInfraredData = new byte[totalValues * 2];
             intDepthData = new int[totalValues];
             rawDepthsTex = new Texture2D(width, height, TextureFormat.R16, false);
+            rawInfraredTex = new Texture2D(width, height, TextureFormat.R16, false);
             rawDepthsTex.filterMode = FilterMode.Bilinear;
+            rawInfraredTex.filterMode = FilterMode.Bilinear;
 
 
 
@@ -748,6 +781,8 @@ namespace ARSandbox
 
                 rawDepthData[2 * i] = (byte)depthDataBuffer[index];
                 rawDepthData[2 * i + 1] = (byte)(depthDataBuffer[index] >> 8);
+                rawInfraredData[2 * i ] = (byte)infraredDataBuffer[index];
+                rawInfraredData[2 * i + 1] = (byte)(infraredDataBuffer[index] >> 8);
                 intDepthData[1 * i] = depthDataBuffer[index];
                 //intDepthData[2 * i + 1] = (depthDataBuffer[index] >> 8);
                 x += 1;
@@ -760,9 +795,43 @@ namespace ARSandbox
 
             rawDepthsTex.LoadRawTextureData(rawDepthData);
             rawDepthsTex.Apply();
+      
         }
         private Texture forcedTexture;
         private bool forcedTextureEnabled;
+
+        public Texture2D InfraredPicture()
+        {
+            rawInfraredTex.LoadRawTextureData(rawInfraredData);
+            
+            Color[] colorsIR = rawInfraredTex.GetPixels();
+            float brightness = 1.1f;
+            float contrast = 1.5f;
+            float gamma = 0.8f;
+            float adjustedBrightness = brightness - 1.0f;
+            
+            for (int i = 0; i < colorsIR.Length; i++)
+            {
+                var p = colorsIR[i];
+                p.r = AdjustChannel(p.r, adjustedBrightness, contrast, gamma);
+                p.g = AdjustChannel(p.r, adjustedBrightness, contrast, gamma);
+                p.b = AdjustChannel(p.r, adjustedBrightness, contrast, gamma);
+                colorsIR[i] = p;
+            }
+            
+            rawInfraredTex.SetPixels(colorsIR);
+            rawInfraredTex.Apply();
+            
+            //var infraredPath = Application.dataPath + "/../IR.png";
+            //byte[] IRPng = rawInfraredTex.EncodeToPNG();           
+            //File.WriteAllBytes(infraredPath, IRPng);
+
+            return rawInfraredTex;
+        }
+        private static float AdjustChannel(float colour, 
+            float brightness, float contrast, float gamma) {
+            return Mathf.Pow(colour, gamma) * contrast + brightness;
+        }
         public void SetForcedHeightTexture(Texture forcedTexture)
         {
             this.forcedTexture = forcedTexture;
@@ -777,6 +846,7 @@ namespace ARSandbox
             if (KinectManager.NewDataReady())
             {
                 depthDataBuffer = KinectManager.GetCurrentData();
+                infraredDataBuffer = KinectManager.GetCurrentInfraredData();
                 UpdateRawTexture();
                 
                 // Always process depth data (for hand detection, water simulation, etc.)
@@ -942,7 +1012,6 @@ namespace ARSandbox
             if (SandboxResolution == SandboxResolution.RawData)
             {
                 // For raw data, just update the raw texture
-                return;
             }
             else
             {
