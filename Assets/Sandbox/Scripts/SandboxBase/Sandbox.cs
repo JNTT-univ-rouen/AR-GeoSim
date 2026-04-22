@@ -19,6 +19,9 @@
 //  along with sensilab-ar-sandbox.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+using System.Drawing.Imaging;
+using System.IO;
+using System.Net;
 using UnityEngine;
 using Windows.Kinect;
 
@@ -101,6 +104,7 @@ namespace ARSandbox
         private Vector3 meshStart = Vector3.zero;
         private bool setInitialLowPassData = true;
 
+        public Texture2D rawInfraredTex;
         public Texture2D rawDepthsTex;
         private RenderTexture rawDepthsRT_DS, rawDepthsRT_DS2, rawDepthsRT_DS3;
         public RenderTexture processedDepthsRT, processedDepthsRT_DS, 
@@ -118,12 +122,33 @@ namespace ARSandbox
 
         public Vector3[] collMeshVertices;
         private int[] collMeshTris;
-        private int colliderDelay = 0;
+        private int colliderDelay;
 
         private byte[] rawDepthData;
+        private byte[] rawInfraredData;
         public int[] intDepthData; 
         public ushort[] depthDataBuffer { get; private set; }
+        public ushort[] infraredDataBuffer { get; private set; }
 
+        public RenderTexture CurrentProcessedRT
+        {
+            get
+            {
+             switch (SandboxResolution)
+             {
+                 case SandboxResolution.Original:
+                     return processedDepthsRT;
+                 case SandboxResolution.Downsampled_1x:
+                     return processedDepthsRT_DS;
+                 case SandboxResolution.Downsampled_2x:
+                     return processedDepthsRT_DS2;
+                 case SandboxResolution.Downsampled_3x:
+                     return processedDepthsRT_DS3;
+                 default:
+                     return processedDepthsRT;
+             }   
+            }
+        }
         private void Start()
         {
             meshRenderer = GetComponent<MeshRenderer>();
@@ -161,6 +186,11 @@ namespace ARSandbox
                 if (SandboxReady && FreezeFrame.enableFrameFreeze && Input.GetKeyDown(FreezeFrame.freezeFrameKey))
                 {
                     ToggleFrameFreeze();
+                }
+
+                if (Input.GetKeyDown(KeyCode.KeypadPlus))
+                {
+                    InfraredPicture();
                 }
             }
         }
@@ -252,6 +282,7 @@ namespace ARSandbox
             UsingCustomShader = true;
             SetShaderProperties(NormalMaterial);
         }
+
         public void SetShaderTexture(string textureName, Texture texture)
         {
             NormalMaterial.SetTexture(textureName, texture);
@@ -314,7 +345,7 @@ namespace ARSandbox
         }
         public void UI_ChangeDynamicLabelColouring(bool dynamicLabelColouring)
         {
-            this.DynamicLabelColouring = dynamicLabelColouring;
+            DynamicLabelColouring = dynamicLabelColouring;
         }
         public void UI_ChangeResolution(float resolution)
         {
@@ -383,16 +414,16 @@ namespace ARSandbox
             switch (SandboxResolution)
             {
                 case SandboxResolution.Downsampled_1x:
-                    meshWidth = sandboxDescriptor.MeshWidth - sandboxDescriptor.MeshWidth / (float)(calibrationDescriptor.DataSize_DS.x);
-                    meshHeight = sandboxDescriptor.MeshHeight - sandboxDescriptor.MeshHeight / (float)(calibrationDescriptor.DataSize_DS.y);
+                    meshWidth = sandboxDescriptor.MeshWidth - sandboxDescriptor.MeshWidth / calibrationDescriptor.DataSize_DS.x;
+                    meshHeight = sandboxDescriptor.MeshHeight - sandboxDescriptor.MeshHeight / calibrationDescriptor.DataSize_DS.y;
                     break;
                 case SandboxResolution.Downsampled_2x:
-                    meshWidth = sandboxDescriptor.MeshWidth - sandboxDescriptor.MeshWidth / (float)(calibrationDescriptor.DataSize_DS2.x);
-                    meshHeight = sandboxDescriptor.MeshHeight - sandboxDescriptor.MeshHeight / (float)(calibrationDescriptor.DataSize_DS2.y);
+                    meshWidth = sandboxDescriptor.MeshWidth - sandboxDescriptor.MeshWidth / calibrationDescriptor.DataSize_DS2.x;
+                    meshHeight = sandboxDescriptor.MeshHeight - sandboxDescriptor.MeshHeight / calibrationDescriptor.DataSize_DS2.y;
                     break;
                 case SandboxResolution.Downsampled_3x:
-                    meshWidth = sandboxDescriptor.MeshWidth - sandboxDescriptor.MeshWidth / (float)(calibrationDescriptor.DataSize_DS3.x);
-                    meshHeight = sandboxDescriptor.MeshHeight - sandboxDescriptor.MeshHeight / (float)(calibrationDescriptor.DataSize_DS3.y);
+                    meshWidth = sandboxDescriptor.MeshWidth - sandboxDescriptor.MeshWidth / calibrationDescriptor.DataSize_DS3.x;
+                    meshHeight = sandboxDescriptor.MeshHeight - sandboxDescriptor.MeshHeight / calibrationDescriptor.DataSize_DS3.y;
                     break;
                 default:
                     meshWidth = sandboxDescriptor.MeshWidth;
@@ -485,9 +516,9 @@ namespace ARSandbox
 
             float meshWidth = sandboxDescriptor.MeshWidth;
             float meshHeight = sandboxDescriptor.MeshHeight;
-            MESH_XY_STRIDE_DS1 = new Vector2(meshWidth / (float)(calibrationDescriptor.DataSize_DS.x - 1), meshHeight / (float)(calibrationDescriptor.DataSize_DS.y - 1));
-            MESH_XY_STRIDE_DS2 = new Vector2(meshWidth / (float)(calibrationDescriptor.DataSize_DS2.x - 1), meshHeight / (float)(calibrationDescriptor.DataSize_DS2.y - 1));
-            MESH_XY_STRIDE_DS3 = new Vector2(meshWidth / (float)(calibrationDescriptor.DataSize_DS3.x - 1), meshHeight / (float)(calibrationDescriptor.DataSize_DS3.y - 1));
+            MESH_XY_STRIDE_DS1 = new Vector2(meshWidth / (calibrationDescriptor.DataSize_DS.x - 1), meshHeight / (calibrationDescriptor.DataSize_DS.y - 1));
+            MESH_XY_STRIDE_DS2 = new Vector2(meshWidth / (calibrationDescriptor.DataSize_DS2.x - 1), meshHeight / (calibrationDescriptor.DataSize_DS2.y - 1));
+            MESH_XY_STRIDE_DS3 = new Vector2(meshWidth / (calibrationDescriptor.DataSize_DS3.x - 1), meshHeight / (calibrationDescriptor.DataSize_DS3.y - 1));
 
             ResizeBoxColliders();
 
@@ -501,9 +532,12 @@ namespace ARSandbox
             int totalValues = calibrationDescriptor.TotalDataPoints;
 
             rawDepthData = new byte[totalValues * 2];
+            rawInfraredData = new byte[totalValues * 2];
             intDepthData = new int[totalValues];
             rawDepthsTex = new Texture2D(width, height, TextureFormat.R16, false);
+            rawInfraredTex = new Texture2D(width, height, TextureFormat.R16, false);
             rawDepthsTex.filterMode = FilterMode.Bilinear;
+            rawInfraredTex.filterMode = FilterMode.Bilinear;
 
 
 
@@ -613,7 +647,95 @@ namespace ARSandbox
         public void ToggleFrameFreeze()
         {
             if (FreezeFrame.isFrameFrozen) FreezeFrame.UnfreezeFrame();
-            else FreezeFrame.OnFreezeFrame(rawDepthsTex, processedDepthsRT);
+            else
+            {
+                var path = Application.dataPath + "/../RawDepths.png";
+                /*var values = rawDepthsTex.GetPixels();
+                var colors = new Color32[values.Length];
+                for (int i = 0; i < values.Length; i++)
+                {
+                    byte g = (byte)Mathf.Clamp(Mathf.RoundToInt(values[i].r * 255f), 0, 255);
+                    colors[i] = new Color32(g, g, g, 255); // alpha 255 so it’s visible
+                }
+
+                rawDepthsTex.SetPixels32(colors);
+                rawDepthsTex.Apply();
+                byte[] bytes = rawDepthsTex.EncodeToPNG();
+                File.WriteAllBytes(Application.dataPath+"/../RawDepths.png", bytes);
+                FreezeFrame.OnFreezeFrame(rawDepthsTex, processedDepthsRT);*/
+                
+                
+                int startX = calibrationDescriptor.DataStart.x;
+                int startY = calibrationDescriptor.DataStart.y;
+                int endX   = calibrationDescriptor.DataEnd.x;   // exclusive
+                int endY   = calibrationDescriptor.DataEnd.y;   // exclusive
+                int width  = endX - startX;
+                int height = endY - startY;
+
+                float minDepth = calibrationDescriptor.MinDepth; // e.g. 800
+                float maxDepth = calibrationDescriptor.MaxDepth; // e.g. 1400
+                float depthRange = maxDepth - minDepth;
+                
+
+                Color32[] colors = new Color32[width * height];
+                
+                for (int i = 0; i < width*height; i++)
+                {
+                    // Use intDepthData[i] directly - it's already the cropped value!
+                    float normalizedValue = (intDepthData[i] - minDepth) / depthRange;
+                    normalizedValue = Mathf.Clamp01(normalizedValue);
+    
+                    // Invert: higher depth = darker
+                    float invertedValue = 1f - normalizedValue;
+    
+                    byte g = (byte)Mathf.RoundToInt(invertedValue * 255f);
+                    colors[i] = new Color32(g, g, g, 255);
+                }
+                
+                var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                tex.SetPixels32(colors);
+                tex.Apply();
+                byte[] png = tex.EncodeToPNG();
+                File.WriteAllBytes(path, png);
+
+                // Also capture the sandbox area of the current color frame to ../ColorDepth.png (if available)
+                if (KinectManager != null)
+                {
+                    Texture2D fullColorTex = KinectManager.GetCurrentColorTexture();
+                    if (fullColorTex != null && kinectFrameDesc != null)
+                    {
+                        int depthFrameWidth = kinectFrameDesc.Width;
+                        int depthFrameHeight = kinectFrameDesc.Height;
+
+                        // Create a color texture matching the sandbox (depth) area dimensions
+                        var colorSandboxTex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+
+                        for (int y = 0; y < height; y++)
+                        {
+                            for (int x = 0; x < width; x++)
+                            {
+                                // Map sandbox/depth-space coordinates into normalized depth space
+                                float depthX = startX + x;
+                                float depthY = startY + y;
+                                float u = depthX / (float)depthFrameWidth;
+                                float v = depthY / (float)depthFrameHeight;
+
+                                // Sample from the full color frame using bilinear filtering
+                                Color c = fullColorTex.GetPixelBilinear(u, v);
+                                colorSandboxTex.SetPixel(x, y, c);
+                            }
+                        }
+
+                        colorSandboxTex.Apply();
+
+                        var colorPath = Application.dataPath + "/../ColorDepth.png";
+                        byte[] colorPng = colorSandboxTex.EncodeToPNG();
+                        File.WriteAllBytes(colorPath, colorPng);
+                    }
+                }
+
+                //FreezeFrame.OnFreezeFrame(rawDepthsTex, processedDepthsRT);
+            }
         }
         private void CreateBoxColliders()
         {
@@ -659,6 +781,8 @@ namespace ARSandbox
 
                 rawDepthData[2 * i] = (byte)depthDataBuffer[index];
                 rawDepthData[2 * i + 1] = (byte)(depthDataBuffer[index] >> 8);
+                rawInfraredData[2 * i ] = (byte)infraredDataBuffer[index];
+                rawInfraredData[2 * i + 1] = (byte)(infraredDataBuffer[index] >> 8);
                 intDepthData[1 * i] = depthDataBuffer[index];
                 //intDepthData[2 * i + 1] = (depthDataBuffer[index] >> 8);
                 x += 1;
@@ -671,9 +795,43 @@ namespace ARSandbox
 
             rawDepthsTex.LoadRawTextureData(rawDepthData);
             rawDepthsTex.Apply();
+      
         }
         private Texture forcedTexture;
         private bool forcedTextureEnabled;
+
+        public Texture2D InfraredPicture()
+        {
+            rawInfraredTex.LoadRawTextureData(rawInfraredData);
+            
+            Color[] colorsIR = rawInfraredTex.GetPixels();
+            float brightness = 1.1f;
+            float contrast = 1.5f;
+            float gamma = 0.8f;
+            float adjustedBrightness = brightness - 1.0f;
+            
+            for (int i = 0; i < colorsIR.Length; i++)
+            {
+                var p = colorsIR[i];
+                p.r = AdjustChannel(p.r, adjustedBrightness, contrast, gamma);
+                p.g = AdjustChannel(p.r, adjustedBrightness, contrast, gamma);
+                p.b = AdjustChannel(p.r, adjustedBrightness, contrast, gamma);
+                colorsIR[i] = p;
+            }
+            
+            rawInfraredTex.SetPixels(colorsIR);
+            rawInfraredTex.Apply();
+            
+            //var infraredPath = Application.dataPath + "/../IR.png";
+            //byte[] IRPng = rawInfraredTex.EncodeToPNG();           
+            //File.WriteAllBytes(infraredPath, IRPng);
+
+            return rawInfraredTex;
+        }
+        private static float AdjustChannel(float colour, 
+            float brightness, float contrast, float gamma) {
+            return Mathf.Pow(colour, gamma) * contrast + brightness;
+        }
         public void SetForcedHeightTexture(Texture forcedTexture)
         {
             this.forcedTexture = forcedTexture;
@@ -688,6 +846,7 @@ namespace ARSandbox
             if (KinectManager.NewDataReady())
             {
                 depthDataBuffer = KinectManager.GetCurrentData();
+                infraredDataBuffer = KinectManager.GetCurrentInfraredData();
                 UpdateRawTexture();
                 
                 // Always process depth data (for hand detection, water simulation, etc.)
@@ -853,7 +1012,6 @@ namespace ARSandbox
             if (SandboxResolution == SandboxResolution.RawData)
             {
                 // For raw data, just update the raw texture
-                return;
             }
             else
             {

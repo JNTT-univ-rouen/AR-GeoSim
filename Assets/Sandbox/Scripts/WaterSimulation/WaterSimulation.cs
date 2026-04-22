@@ -43,6 +43,7 @@ namespace ARSandbox.WaterSimulation
         public Shader MetaballShader;
         public ComputeShader WaterSurfaceComputeShader;
         public Texture2D WaterColorTexture;
+        public UI_DropdownSeasonMenu dropdownMenu;
 
         private SandboxDescriptor sandboxDescriptor;
         private List<WaterDroplet> waterDroplets;
@@ -56,11 +57,17 @@ namespace ARSandbox.WaterSimulation
 
         private IEnumerator RunSimulationCoroutine;
         private bool initialised;
+		private bool waterActive;
         
         private IEnumerator RunAbsorptionCoroutine;
         private bool _soilAbsorptionActive;
         public float WaterAbsorptionSpeed { get; private set; }
         public Toggle WaterAbsorbtionToggle ;
+
+        [Header("Precipitation Settings (Hand-Driven)")]
+        public float PrecipitationDropsPerGesture = 1f; // how many droplets per detected gesture
+        public float PrecipitationSpawnRadius = 3f;     // spread around gesture position
+        private float _gestureSpawnAccumulator = 0f;
 
         [Header("Hand Detection Settings")]
         public int HandTresholdMin = 600;
@@ -83,6 +90,8 @@ namespace ARSandbox.WaterSimulation
         private int stabilityThreshold = 60;
         
         private const int MaxMetaballs = 2000;
+        
+
 
 
         void InitialiseSimulation()
@@ -92,6 +101,7 @@ namespace ARSandbox.WaterSimulation
                 waterDroplets = new List<WaterDroplet>();
                 currSubsection = 0;
                 showParticles = false;
+				waterActive = true;
 
                 CreateWaterSurfaceRenderTextures();
                 swapBuffers = false;
@@ -102,11 +112,12 @@ namespace ARSandbox.WaterSimulation
             }
             initialised = true;
         }
-
+        
         IEnumerator RunSimulation()
         {
             while (true)
             {
+				
                 CullStrayMetaballs();
 
                 KeepMetaballsAboveSandbox();
@@ -134,7 +145,7 @@ namespace ARSandbox.WaterSimulation
         void OnEnable()
         {
             InitialiseSimulation();
-
+            
             HandInput.OnGesturesReady += OnGesturesReady;
             CalibrationManager.OnCalibration += OnCalibration;
             Sandbox.OnSandboxReady += OnSandboxReady;
@@ -151,6 +162,7 @@ namespace ARSandbox.WaterSimulation
 
         void OnDisable()
         {
+            
             HandInput.OnGesturesReady -= OnGesturesReady;
             CalibrationManager.OnCalibration -= OnCalibration;
             Sandbox.OnSandboxReady -= OnSandboxReady;
@@ -168,6 +180,7 @@ namespace ARSandbox.WaterSimulation
             MetaballCamera.gameObject.SetActive(false);
             DestroyWaterDroplets();
             Sandbox.SetDefaultShader();
+            Sandbox.SetRenderMaterial(SandboxRenderMaterial.Normal);
 
             StopCoroutine(RunSimulationCoroutine);
         }
@@ -329,6 +342,10 @@ namespace ARSandbox.WaterSimulation
 
         public void DropWater(Vector3 position)
         {
+			if (!waterActive)
+			{
+				return;
+			}
             if (!Physics.CheckSphere(position + new Vector3(0, 0, -5), 1.0f))
             {
                 WaterDroplet waterDroplet = Instantiate(WaterDroplet, position, Quaternion.identity);
@@ -441,7 +458,7 @@ namespace ARSandbox.WaterSimulation
             foreach (int gestureID in gesturesToRemove)
             {
                 HandInput.RemoveGesture(gestureID);
-                Debug.Log($"Cleaned up old detected hand gesture with ID {gestureID}");
+                //Debug.Log($"Cleaned up old detected hand gesture with ID {gestureID}");
             }
         }
         private void OnGesturesReady()
@@ -458,7 +475,8 @@ namespace ARSandbox.WaterSimulation
                     else
                     {
                         // Normal water drop when not frozen
-                        DropWater(gesture.WorldPosition);
+                        // Spawn precipitation cluster based on intensity when not frozen
+                        SpawnGesturePrecipitation(gesture.WorldPosition);
                     }
                 }
             }
@@ -481,7 +499,6 @@ namespace ARSandbox.WaterSimulation
         public void UI_ToggleShowParticles(bool showParticles)
         {
             this.showParticles = showParticles;
-            Debug.Log(showParticles);
             foreach (WaterDroplet droplet in waterDroplets)
             {
                 droplet.SetShowMesh(showParticles);
@@ -497,13 +514,26 @@ namespace ARSandbox.WaterSimulation
             }
 
         }
+		public void UI_ToggleWater(bool isActive)
+		{
+			waterActive = isActive;
+		}
         public void UI_SetWaterAbsorptionSpeed(float waterSpeedMultiplier)
         {
             WaterAbsorptionSpeed = 1/waterSpeedMultiplier;
         }
         
+        
 
-
+        public void UI_SetPrecipitationIntensity(float dropsPerGesture)
+        {
+            PrecipitationDropsPerGesture = Mathf.Max(0f, dropsPerGesture);
+        }
+        
+        public void UI_SetPrecipitationSpread(float radius)
+        {
+            PrecipitationSpawnRadius = Mathf.Max(0f, radius);
+        }
         
         
         private Vector3 GetHandCurrentWorldPosition()
@@ -517,22 +547,37 @@ namespace ARSandbox.WaterSimulation
             if (validPoints.Length == 0) return Vector3.zero;
 
             // Calculate average position
-            var avgX = validPoints.Average(p => p.Index % 231);
-            var avgY = validPoints.Average(p => p.Index / 231);
+            int dataWidth = sandboxDescriptor != null ? sandboxDescriptor.DataSize.x : 231;
+            var avgX = validPoints.Average(p => p.Index % dataWidth);
+            var avgY = validPoints.Average(p => p.Index / dataWidth);
             var currentPosition = Sandbox.DataPosToWorldPos(new Point((int)avgX, (int)avgY));
             currentPosition.z = HandTresholdMin;
             
             return currentPosition;
         }
         
-        private Vector3 AveragePoint(Tuple<int, int>[] tuple)
+        private Vector3 AveragePoint()
         {
-                Vector3[] handDetectionVectors = new Vector3[tuple.Length];
+            
+            var validPoints = Sandbox.intDepthData
+                .Select((depth, index) => new { Depth = depth, Index = index })
+                .Where(p => p.Depth > HandTresholdMin && p.Depth < HandTresholdMax)
+                .ToArray();
+            
+            if (validPoints.Length == 0) return Vector3.zero;
+            
+                Vector3[] handDetectionVectors = new Vector3[validPoints.Length];
                 int index = 0;
-                foreach (Tuple<int, int> t in tuple)
+                int dataWidth = sandboxDescriptor != null ? sandboxDescriptor.DataSize.x : 231;
+                foreach (var point in validPoints)
                 {
-                    handDetectionVectors[index] = new Vector3(t.Item2 % 231, t.Item2 / 231, t.Item1);
+                    handDetectionVectors[index] = new Vector3(point.Index % dataWidth, point.Index / dataWidth, 650);
                     index++;
+                }
+                //foreach (Tuple<int, int> t in validPoints)
+                {
+                    //handDetectionVectors[index] = new Vector3(t.Item2 % 231, t.Item2 / 231, t.Item1);
+                    //index++;
                 }
 
                 float sumX = 0, sumY = 0, sumZ = 0;
@@ -563,8 +608,15 @@ namespace ARSandbox.WaterSimulation
                 // Clean up old gestures periodically
                 //CleanupOldGestures();
 
+                //Vector3 currentHandPosition = GetHandCurrentWorldPosition();
                 Vector3 currentHandPosition = GetHandCurrentWorldPosition();
                 Vector2 currentHandPosition2 = GetHandCurrentWorldPosition();
+
+				// Ignore positions outside sandbox bounds
+				if (currentHandPosition != Vector3.zero && !IsHandWithinBounds(currentHandPosition))
+				{
+					currentHandPosition = Vector3.zero;
+				}
                 if (Vector3.Distance(currentHandPosition, lastHandPosition) < minHandMovement && currentHandPosition!= Vector3.zero)
                 {
                     stabilityThreshold--;
@@ -578,7 +630,7 @@ namespace ARSandbox.WaterSimulation
                         if (enableHandInputIntegration)
                         {
                             HandInput.OnHandHovered(gestureID, currentHandPosition2);
-                            Debug.Log("Gesture ID: " + gestureID);
+                            //Debug.Log("Gesture ID: " + gestureID);
                         }
                         
                         // Check if frame is frozen - store gesture instead of dropping water immediately
@@ -604,5 +656,36 @@ namespace ARSandbox.WaterSimulation
                 yield return null;
             }
         }
+
+        
+
+        private void SpawnGesturePrecipitation(Vector3 centre)
+        {
+            if (!waterActive)
+            {
+                return;
+            }
+
+            float desiredCount = PrecipitationDropsPerGesture + _gestureSpawnAccumulator;
+            int spawnCount = Mathf.FloorToInt(desiredCount);
+            _gestureSpawnAccumulator = desiredCount - spawnCount;
+
+            if (spawnCount <= 0)
+            {
+                return;
+            }
+
+            for (int i = 0; i < spawnCount; i++)
+            {
+                // jitter within circle on X/Y plane
+                float angle = Random.value * Mathf.PI * 2f;
+                float radius = PrecipitationSpawnRadius * Mathf.Sqrt(Random.value);
+                float dx = Mathf.Cos(angle) * radius;
+                float dy = Mathf.Sin(angle) * radius;
+                Vector3 spawn = new Vector3(centre.x + dx, centre.y + dy, centre.z);
+                DropWater(spawn);
+            }
+        }
+
     }
 }

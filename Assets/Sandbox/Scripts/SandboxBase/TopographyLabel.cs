@@ -59,7 +59,7 @@ namespace ARSandbox
             float rotation = contourLabelProps.Rotation;
 
             Quaternion rotationQuaterion = new Quaternion();
-            rotationQuaterion.eulerAngles = new Vector3(0, 0, rotation + 90);
+            rotationQuaterion.eulerAngles = new Vector3(0, 0, rotation + (-90));
 
             transform.position = new Vector3(xPos, yPos, zPos);
             /*if (zPos < 360)

@@ -38,7 +38,8 @@ namespace ARSandbox
         
         void Start()
         {
-            kinectManager = FindObjectOfType<KinectManager>();
+            kinectManager = Object.FindObjectOfType<KinectManager>();
+            
             
             if (kinectManager == null)
             {

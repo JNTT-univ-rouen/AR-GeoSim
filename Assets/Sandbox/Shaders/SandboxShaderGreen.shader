@@ -1,25 +1,8 @@
-﻿//  
-//  SandboxShaderBlackAndWhite.shader
+//  SandboxShaderGreen.shader
 //
-//	Copyright 2021 SensiLab, Monash University <sensilab@monash.edu>
-//
-//  This file is part of sensilab-ar-sandbox.
-//
-//  sensilab-ar-sandbox is free software: you can redistribute it and/or modify
-//  it under the terms of the GNU General Public License as published by
-//  the Free Software Foundation, either version 3 of the License, or
-//  (at your option) any later version.
-// 
-//  sensilab-ar-sandbox is distributed in the hope that it will be useful,
-//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//  GNU General Public License for more details.
-// 
-//  You should have received a copy of the GNU General Public License
-//  along with sensilab-ar-sandbox.  If not, see <https://www.gnu.org/licenses/>.
-//
+//  Based on SandboxShaderBlackAndWhite with a green tint applied
 
-Shader "Unlit/SandboxShaderBlackAndWhite"
+Shader "Unlit/SandboxShaderGreen"
 {
 	Properties
 	{
@@ -51,8 +34,8 @@ Shader "Unlit/SandboxShaderBlackAndWhite"
 			{
 				float2 uv_HeightTex : TEXCOORD0;
 				float2 uv_LabelMaskTex : TEXCOORD1;
-				float2 uv_MetaballTex: TEXCOORD2;
-				float2 uv_WaterSurfaceTex: TEXCOORD3;
+				float2 uv_MetaballTex : TEXCOORD2;
+				float2 uv_WaterSurfaceTex : TEXCOORD3;
 				float4 vertex : SV_POSITION;
 			};
 
@@ -91,15 +74,32 @@ Shader "Unlit/SandboxShaderBlackAndWhite"
 				fixed4 textColor = (1 - contourMapFrag.textIntensity) * fixed4(1, 1, 1, 1) +
 					contourMapFrag.textIntensity * fixed4(0, 0, 0, 1);
 
+				// Base land color: 6 green bands by height (higher = darker)
+				fixed4 baseColor = fixed4(1, 1, 1, 1);
+				float h = saturate(contourMapFrag.normalisedHeight);
+				int band = (int)floor(h * 8.0);
+				band = clamp(band, 0, 7);
+				//Ajouter du vert
+				float3 g0 = float3(0.20, 0.64, 0.37); // lowest (lightest)
+				//float3 g1 = float3(0.78, 0.92, 0.78);
+				//float3 g2 = float3(0.66, 0.84, 0.66);
+				//float3 g3 = float3(0.50, 0.70, 0.50);
+				//float3 g4 = float3(0.38, 0.58, 0.38);
+				//float3 g5 = float3(0.26, 0.46, 0.26);
+				//float3 g6 = float3(0.20, 0.38, 0.20);
+				//float3 g7 = float3(0.14, 0.30, 0.14); // highest (darkest)
+				//float3 landGreen = band == 0 ? g0 : (band == 1 ? g1 : (band == 2 ? g2 : (band == 3 ? g3 : (band == 4 ? g4 : (band == 5 ? g5 : (band == 6 ? g6 : g7))))));
+				float3 landGreen = band == 0 ? g0 : (band == 1 ? g0 : (band == 2 ? g0 : (band == 3 ? g0 : (band == 4 ? g0 : (band == 5 ? g0 : (band == 6 ? g0 : g0))))));
 
-
-
+				//baseColor.rgb = landGreen * 0.85; // darken by 15%
+				baseColor.rgb = landGreen * 1; // darken by 0%
+				
 				// Metaball/water overlay
 				float metaballValue = tex2D(_MetaballTex, i.uv_MetaballTex).r;
 				float waterSurfaceHeightLarge = (float)tex2D(_WaterSurfaceTex, i.uv_WaterSurfaceTex);
 				fixed4 waterColor = tex2D(_WaterColorTex, float2((waterSurfaceHeightLarge - 0.26) * 6.5f, 0));
 				int inWater = metaballValue > 0.3;
-				fixed4 bodyColor = inWater == 1 ? waterColor : fixed4(1, 1, 1, 1);
+				fixed4 bodyColor = inWater == 1 ? waterColor : baseColor;
 
 				// Apply contour lines and labels over bodyColor
 				fixed4 contrastMajor = inWater == 1 ? WHITE_COLOUR : BLACK_COLOUR;
@@ -111,8 +111,10 @@ Shader "Unlit/SandboxShaderBlackAndWhite"
 
 				return finalColor;
 			}
-			
 			ENDCG
 		}
 	}
 }
+
+
+
