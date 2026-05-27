@@ -46,6 +46,11 @@ RWTexture2D<float> LowPassCounterRT;
 
 float4 LowPassParams0 = float4(512, 424, 0.3, 0.05);
 float4 LowPassParams1 = float4(1000.0, 1200.0, 10.0, 20.0);
+// Optional depth-rejection mask (not wired up): float4 LowPassParams2 = float4(marginBelow, marginAbove, maxDeltaPerFrame, enabled);
+// #define REJECT_MARGIN_BELOW   (LowPassParams2.x)
+// #define REJECT_MARGIN_ABOVE   (LowPassParams2.y)
+// #define MAX_DEPTH_DELTA       (LowPassParams2.z)
+// #define DEPTH_REJECTION_ENABLED (LowPassParams2.w)
 
 #define TEX_SIZE_LP_X		(LowPassParams0.x) 
 #define TEX_SIZE_LP_Y		(LowPassParams0.y)
@@ -79,6 +84,14 @@ void CS_LowPassData (uint3 id : SV_DispatchThreadID)
 
 	float internalDepthValue = InternalLowPassDataRT[id.xy];
 	if (scaledDepthVal < adjustedMinDepth  || scaledDepthVal > adjustedMaxDepth) depthVal = internalDepthValue;
+
+	// Depth-rejection mask (e.g. hands in view): early return to keep previous height at this pixel.
+	// if (DEPTH_REJECTION_ENABLED > 0.5) {
+	//   bool belowRange = scaledDepthVal < MIN_DEPTH - REJECT_MARGIN_BELOW;
+	//   bool aboveRange = scaledDepthVal > MAX_DEPTH + REJECT_MARGIN_ABOVE;
+	//   bool spike = MAX_DEPTH_DELTA > 0.0 && abs(scaledDepthVal - LowPassDataRT[id.xy] * POW_2_16) > MAX_DEPTH_DELTA;
+	//   if (belowRange || aboveRange || spike) return;
+	// }
 
 	if (depthVal > internalDepthValue) {
 		internalDepthValue = ALPHA_1*depthVal  + (1-ALPHA_1)*internalDepthValue;

@@ -69,6 +69,10 @@ namespace ARSandbox
 
         [Range(0, 60)]
         public float LowPassHoldTime = 30.0f;
+
+        // Depth-rejection mask (not enabled): per-pixel early return in CS_LowPassData when depth is outside
+        // MinDepth/MaxDepth ± margins or spikes vs previous frame — keeps previous height (e.g. hands in view).
+        // Wire up via LowPassParams2: EnableDepthRejection, DepthRejectMarginBelow/Above (mm), MaxDepthChangePerFrame.
         
         public float MajorContourSpacing { get; private set; }
         public int MinorContours { get; private set; }
@@ -286,6 +290,29 @@ namespace ARSandbox
         public void SetShaderTexture(string textureName, Texture texture)
         {
             NormalMaterial.SetTexture(textureName, texture);
+        }
+
+        /// <summary>
+        /// Binds a tileable photo to SandboxShaderGreen / SandboxShaderOrange (_TerrainAlbedoTex).
+        /// </summary>
+        public void ApplyTerrainAlbedo(Texture albedo, float strength, float repeat)
+        {
+            if (meshRenderer == null || NormalMaterial == null)
+                return;
+
+            if (albedo != null)
+                NormalMaterial.SetTexture("_TerrainAlbedoTex", albedo);
+
+            NormalMaterial.SetFloat("_TerrainAlbedoStrength", strength);
+            NormalMaterial.SetFloat("_TerrainAlbedoRepeat", Mathf.Max(repeat, 0.001f));
+            NormalMaterial.SetTextureScale("_TerrainAlbedoTex", Vector2.one);
+            NormalMaterial.SetTextureOffset("_TerrainAlbedoTex", Vector2.zero);
+        }
+
+        public void ClearTerrainAlbedo()
+        {
+            if (NormalMaterial != null)
+                NormalMaterial.SetFloat("_TerrainAlbedoStrength", 0f);
         }
         public void SetShaderFloat(string floatName, float value)
         {
@@ -974,38 +1001,6 @@ namespace ARSandbox
             
         }
         
-        // Get low-pass depth data for hand detection
-        public float[] GetLowPassDepthData()
-        {
-            if (lowPassDataRT == null || !SandboxReady)
-                return null;
-                
-            // Create a temporary RenderTexture to read from
-            RenderTexture tempRT = RenderTexture.GetTemporary(lowPassDataRT.width, lowPassDataRT.height, 0, RenderTextureFormat.RHalf);
-            Graphics.Blit(lowPassDataRT, tempRT);
-            
-            // Read the data
-            RenderTexture.active = tempRT;
-            Texture2D tempTex = new Texture2D(tempRT.width, tempRT.height, TextureFormat.RHalf, false);
-            tempTex.ReadPixels(new Rect(0, 0, tempRT.width, tempRT.height), 0, 0);
-            tempTex.Apply();
-            
-            // Convert to float array
-            Color[] pixels = tempTex.GetPixels();
-            float[] depthData = new float[pixels.Length];
-            
-            for (int i = 0; i < pixels.Length; i++)
-            {
-                depthData[i] = pixels[i].r * 65535f; // Convert from 0-1 to 0-65535 range
-            }
-            
-            // Cleanup
-            RenderTexture.active = null;
-            RenderTexture.ReleaseTemporary(tempRT);
-            DestroyImmediate(tempTex);
-            
-            return depthData;
-        }
         // Process depth data without updating visual mesh (for frozen frames)
         private void ProcessDepthDataOnly()
         {

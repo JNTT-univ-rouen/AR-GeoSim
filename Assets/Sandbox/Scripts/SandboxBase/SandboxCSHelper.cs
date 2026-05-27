@@ -82,7 +82,9 @@ namespace ARSandbox
 
             float[] lowPassParams1 = new float[4] { minDepth, maxDepth, noiseTolerance, lowPassHoldTime };
             sandboxCS.SetFloats("LowPassParams1", lowPassParams1);
-            
+
+            // Depth-rejection mask: pass LowPassParams2 (marginBelow, marginAbove, maxDeltaPerFrame, enabled)
+            // and add matching fields on Sandbox (EnableDepthRejection, DepthRejectMarginBelow, etc.).
 
             Point threadsToRun = ComputeShaderHelpers.CalculateThreadsToRun(new Point(texSizeX, texSizeY), CS_SQUARE_LAYOUT_16);
             sandboxCS.Dispatch(kernelHandle, threadsToRun.x, threadsToRun.y, 1);
