@@ -1,6 +1,6 @@
 using System;
 using TMPro;
-using UnityEditor.Search;
+
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -84,11 +84,11 @@ public class HexGrid : MonoBehaviour
                 }
             }
         }
-        TextMeshProUGUI label = Instantiate<TextMeshProUGUI>(cellLabelPrefab);
-        label.rectTransform.SetParent(gridCanvas.transform, false);
-        label.rectTransform.anchoredPosition =
-            new Vector2(position.x, position.z);
-        label.text = cell.coordinates.ToStringOnSeparateLines();
+        //TextMeshProUGUI label = Instantiate<TextMeshProUGUI>(cellLabelPrefab);
+        //label.rectTransform.SetParent(gridCanvas.transform, false);
+        //label.rectTransform.anchoredPosition =
+            //new Vector2(position.x, position.z);
+        //label.text = cell.coordinates.ToStringOnSeparateLines();
     }
 
     void GeneterateGrid()

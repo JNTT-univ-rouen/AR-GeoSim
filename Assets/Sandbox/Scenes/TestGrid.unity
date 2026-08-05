@@ -802,7 +802,7 @@ AudioListener:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1163794736}
-  m_Enabled: 1
+  m_Enabled: 0
 --- !u!20 &1163794738
 Camera:
   m_ObjectHideFlags: 0
@@ -1221,8 +1221,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2fba82caab86a6942b86223f0b020e17, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HexGrid
-  width: 8
-  height: 8
+  width: 6
+  height: 6
   cellPrefab: {fileID: 421253007677867184, guid: 539c691d23f7dc84f9cc73f13425ad6a,
     type: 3}
   cellLabelPrefab: {fileID: 2964764808022547917, guid: a8cb05e27440a8842bb1db54d7821ed9,
