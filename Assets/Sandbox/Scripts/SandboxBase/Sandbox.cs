@@ -270,6 +270,53 @@ namespace ARSandbox
         {
             return SandboxCSHelper.Run_ExtractDepthData(SandboxProcessingShader, processedDepthsRT);
         }
+
+        // --- Pont vers des systèmes externes (ex: HexGrid) ---
+
+        private int[] cachedDepthArray;
+        private int cachedDepthArrayWidth;
+        private int cachedDepthArrayHeight;
+
+        public float MinDepth => calibrationDescriptor.MinDepth;
+        public float MaxDepth => calibrationDescriptor.MaxDepth;
+
+        /// <summary>
+        /// Rafraîchit le cache CPU de profondeurs. Coûteux (lecture GPU->CPU),
+        /// à appeler à intervalle régulier plutôt qu'à chaque frame.
+        /// </summary>
+        public void RefreshDepthArrayCache()
+        {
+            cachedDepthArray = GetProcessedDepthsArray();
+            cachedDepthArrayWidth = calibrationDescriptor.DataSize.x;
+            cachedDepthArrayHeight = calibrationDescriptor.DataSize.y;
+        }
+
+        /// <summary>
+        /// Profondeur moyenne (mm) sous un rectangle exprimé en coordonnées
+        /// locales du Sandbox (même repère que meshStart / MESH_XY_STRIDE).
+        /// Nécessite un appel préalable à RefreshDepthArrayCache().
+        /// </summary>
+        public float GetAverageDepthInLocalRect(Vector2 localMin, Vector2 localMax)
+        {
+            if (cachedDepthArray == null) return calibrationDescriptor.MaxDepth;
+
+            int xMin = Mathf.Clamp(Mathf.FloorToInt((localMin.x - meshStart.x) / MESH_XY_STRIDE.x), 0, cachedDepthArrayWidth - 1);
+            int xMax = Mathf.Clamp(Mathf.CeilToInt((localMax.x - meshStart.x) / MESH_XY_STRIDE.x), 0, cachedDepthArrayWidth - 1);
+            int yMin = Mathf.Clamp(Mathf.FloorToInt((localMin.y - meshStart.y) / MESH_XY_STRIDE.y), 0, cachedDepthArrayHeight - 1);
+            int yMax = Mathf.Clamp(Mathf.CeilToInt((localMax.y - meshStart.y) / MESH_XY_STRIDE.y), 0, cachedDepthArrayHeight - 1);
+
+            long sum = 0;
+            int count = 0;
+            for (int y = yMin; y <= yMax; y++)
+            {
+                for (int x = xMin; x <= xMax; x++)
+                {
+                    sum += cachedDepthArray[y * cachedDepthArrayWidth + x];
+                    count++;
+                }
+            }
+            return count > 0 ? (float)sum / count : calibrationDescriptor.MaxDepth;
+        }
         public void SetHeightTexture(Texture heightTexture)
         {
             CurrentDepthTexture = heightTexture;
