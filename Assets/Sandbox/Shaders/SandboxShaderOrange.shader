@@ -1,6 +1,7 @@
-//  SandboxShaderOrange.shader
+//  SandboxShaderOrange.shader — Dried / arid terrain (normal season in water sim UI)
 //
-//  Based on SandboxShaderBlackAndWhite with an orange tint applied
+//  Natural look: height gradient + procedural variation + slope drying.
+//  Optional _TerrainAlbedoTex: tileable dry grass or soil photo.
 
 Shader "Unlit/SandboxShaderOrange"
 {
@@ -11,6 +12,12 @@ Shader "Unlit/SandboxShaderOrange"
 		_MetaballTex("Metaball Texture", 2D) = "white" {}
 		_WaterSurfaceTex("Water Surface Texture", 2D) = "white" {}
 		_WaterColorTex("Water Color Texture", 2D) = "white" {}
+		_TerrainAlbedoTex("Terrain Albedo (optional)", 2D) = "gray" {}
+		_TerrainNoiseScale("Noise scale", Float) = 14
+		_TerrainNoiseStrength("Noise strength", Range(0, 1)) = 0.4
+		_SlopeBlendStrength("Slope soil blend", Range(0, 1)) = 0.5
+		_TerrainAlbedoStrength("Photo texture blend", Range(0, 1)) = 0
+		_TerrainAlbedoRepeat("Texture repeat (1 = once over sandbox)", Float) = 1
 		_ContourStride("Contour Stride (mm)", float) = 20
 		_ContourWidth("Contour Width", float) = 1
 		_MinorContours("Minor Contours", float) = 0
@@ -40,6 +47,7 @@ Shader "Unlit/SandboxShaderOrange"
 			};
 
 			#include "SandboxShaderHelper.cginc"
+			#include "SandboxTerrainVisual.cginc"
 
 			sampler2D _MetaballTex;
 			sampler2D _WaterSurfaceTex;
@@ -62,7 +70,7 @@ Shader "Unlit/SandboxShaderOrange"
 
 				return o;
 			}
-
+ 
 			fixed4 frag (v2f i) : SV_Target
 			{
 				ContourMapFrag contourMapFrag = GetContourMap(i);
@@ -74,26 +82,16 @@ Shader "Unlit/SandboxShaderOrange"
 				fixed4 textColor = (1 - contourMapFrag.textIntensity) * fixed4(1, 1, 1, 1) +
 					contourMapFrag.textIntensity * fixed4(0, 0, 0, 1);
 
-				// Base land color: 8 orange bands by height (higher = darker)
-				fixed4 baseColor = fixed4(1, 1, 1, 1);
-				float h = saturate(contourMapFrag.normalisedHeight);
-				int band = (int)floor(h * 8.0);
-				band = clamp(band, 0, 7);
-				float3 o0 = float3(0.91, 0.77, 0.37); // add red, trim green
+				float slope = GetTerrainSlope(i.uv_HeightTex);
+				float3 landRgb = GetDriedTerrainColor(i.uv_HeightTex, contourMapFrag.normalisedHeight, slope);
+				fixed4 baseColor = fixed4(landRgb, 1);
 
-				float3 landOrange = band == 0 ? o0 : (band == 1 ? o0 : (band == 2 ? o0 : (band == 3 ? o0 : (band == 4 ? o0 : (band == 5 ? o0 : (band == 6 ? o0 : o0))))));
-				// Add a subtle red boost before darkening
-				//float3 redBoost = float3(1.12, 0.98, 0.94);
-				baseColor.rgb = saturate(landOrange ) * 1; // darken by 20%
-
-				// Metaball/water overlay
 				float metaballValue = tex2D(_MetaballTex, i.uv_MetaballTex).r;
 				float waterSurfaceHeightLarge = (float)tex2D(_WaterSurfaceTex, i.uv_WaterSurfaceTex);
 				fixed4 waterColor = tex2D(_WaterColorTex, float2((waterSurfaceHeightLarge - 0.26) * 6.5f, 0));
 				int inWater = metaballValue > 0.3;
 				fixed4 bodyColor = inWater == 1 ? waterColor : baseColor;
 
-				// Apply contour lines and labels over bodyColor
 				fixed4 contrastMajor = inWater == 1 ? WHITE_COLOUR : BLACK_COLOUR;
 				fixed4 contrastMinor = inWater == 1 ? WHITE_COLOUR - MINOR_CONTOUR_COLOUR : MINOR_CONTOUR_COLOUR;
 
@@ -107,6 +105,3 @@ Shader "Unlit/SandboxShaderOrange"
 		}
 	}
 }
-
-
-

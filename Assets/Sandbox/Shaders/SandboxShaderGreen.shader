@@ -1,6 +1,7 @@
-//  SandboxShaderGreen.shader
+//  SandboxShaderGreen.shader — Fertile grasslands / bocage (spring season in water sim UI)
 //
-//  Based on SandboxShaderBlackAndWhite with a green tint applied
+//  Natural look: height gradient + procedural patch noise + slope soil tint.
+//  Optional _TerrainAlbedoTex: tileable grass/soil photo (e.g. textures from ambientCG.com).
 
 Shader "Unlit/SandboxShaderGreen"
 {
@@ -11,6 +12,12 @@ Shader "Unlit/SandboxShaderGreen"
 		_MetaballTex("Metaball Texture", 2D) = "white" {}
 		_WaterSurfaceTex("Water Surface Texture", 2D) = "white" {}
 		_WaterColorTex("Water Color Texture", 2D) = "white" {}
+		_TerrainAlbedoTex("Terrain Albedo (optional)", 2D) = "gray" {}
+		_TerrainNoiseScale("Noise scale", Float) = 12
+		_TerrainNoiseStrength("Noise strength", Range(0, 1)) = 0.35
+		_SlopeBlendStrength("Slope soil blend", Range(0, 1)) = 0.45
+		_TerrainAlbedoStrength("Photo texture blend", Range(0, 1)) = 0
+		_TerrainAlbedoRepeat("Texture repeat (1 = once over sandbox)", Float) = 1
 		_ContourStride("Contour Stride (mm)", float) = 20
 		_ContourWidth("Contour Width", float) = 1
 		_MinorContours("Minor Contours", float) = 0
@@ -40,6 +47,7 @@ Shader "Unlit/SandboxShaderGreen"
 			};
 
 			#include "SandboxShaderHelper.cginc"
+			#include "SandboxTerrainVisual.cginc"
 
 			sampler2D _MetaballTex;
 			sampler2D _WaterSurfaceTex;
@@ -74,34 +82,16 @@ Shader "Unlit/SandboxShaderGreen"
 				fixed4 textColor = (1 - contourMapFrag.textIntensity) * fixed4(1, 1, 1, 1) +
 					contourMapFrag.textIntensity * fixed4(0, 0, 0, 1);
 
-				// Base land color: 6 green bands by height (higher = darker)
-				fixed4 baseColor = fixed4(1, 1, 1, 1);
-				float h = saturate(contourMapFrag.normalisedHeight);
-				int band = (int)floor(h * 8.0);
-				band = clamp(band, 0, 7);
-				//Ajouter du vert
-				float3 g0 = float3(0.20, 0.64, 0.37); // lowest (lightest)
-				//float3 g1 = float3(0.78, 0.92, 0.78);
-				//float3 g2 = float3(0.66, 0.84, 0.66);
-				//float3 g3 = float3(0.50, 0.70, 0.50);
-				//float3 g4 = float3(0.38, 0.58, 0.38);
-				//float3 g5 = float3(0.26, 0.46, 0.26);
-				//float3 g6 = float3(0.20, 0.38, 0.20);
-				//float3 g7 = float3(0.14, 0.30, 0.14); // highest (darkest)
-				//float3 landGreen = band == 0 ? g0 : (band == 1 ? g1 : (band == 2 ? g2 : (band == 3 ? g3 : (band == 4 ? g4 : (band == 5 ? g5 : (band == 6 ? g6 : g7))))));
-				float3 landGreen = band == 0 ? g0 : (band == 1 ? g0 : (band == 2 ? g0 : (band == 3 ? g0 : (band == 4 ? g0 : (band == 5 ? g0 : (band == 6 ? g0 : g0))))));
+				float slope = GetTerrainSlope(i.uv_HeightTex);
+				float3 landRgb = GetGrasslandTerrainColor(i.uv_HeightTex, contourMapFrag.normalisedHeight, slope);
+				fixed4 baseColor = fixed4(landRgb, 1);
 
-				//baseColor.rgb = landGreen * 0.85; // darken by 15%
-				baseColor.rgb = landGreen * 1; // darken by 0%
-				
-				// Metaball/water overlay
 				float metaballValue = tex2D(_MetaballTex, i.uv_MetaballTex).r;
 				float waterSurfaceHeightLarge = (float)tex2D(_WaterSurfaceTex, i.uv_WaterSurfaceTex);
 				fixed4 waterColor = tex2D(_WaterColorTex, float2((waterSurfaceHeightLarge - 0.26) * 6.5f, 0));
 				int inWater = metaballValue > 0.3;
 				fixed4 bodyColor = inWater == 1 ? waterColor : baseColor;
 
-				// Apply contour lines and labels over bodyColor
 				fixed4 contrastMajor = inWater == 1 ? WHITE_COLOUR : BLACK_COLOUR;
 				fixed4 contrastMinor = inWater == 1 ? WHITE_COLOUR - MINOR_CONTOUR_COLOUR : MINOR_CONTOUR_COLOUR;
 
@@ -115,6 +105,3 @@ Shader "Unlit/SandboxShaderGreen"
 		}
 	}
 }
-
-
-
