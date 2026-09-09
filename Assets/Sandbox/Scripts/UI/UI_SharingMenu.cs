@@ -23,6 +23,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Windows;
 
 namespace ARSandbox
 {
@@ -47,6 +48,9 @@ namespace ARSandbox
         public Button UI_UseFrameBtn;
         public Text UI_CaptureNameText;
         public Button UI_ShareButton;
+        public Button UI_SelectFrameBtn;
+
+        public ARSandbox.Sandbox Sandbox;  
 
         private string savedEmail;
 
@@ -151,5 +155,7 @@ namespace ARSandbox
             UI_CaptureFrameMenu.SetActive(true);
             UI_SendFrameMenu.SetActive(false);
         }
+
+        
     }
 }
