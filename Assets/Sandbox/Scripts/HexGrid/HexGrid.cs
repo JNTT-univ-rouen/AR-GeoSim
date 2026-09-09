@@ -1,29 +1,30 @@
-using System;
-using TMPro;
-
 using UnityEngine;
-using UnityEngine.UI;
 
 public class HexGrid : MonoBehaviour
 {
     public int width = 6;
     public int height = 6;
-    
+
     public HexCell cellPrefab;
 
-    public TextMeshProUGUI  cellLabelPrefab;
-
-    private Canvas gridCanvas;
     private HexMesh hexMesh;
-    
-    public Color defaultColor = Color.white;
-    
+
     HexCell[] cells;
-    
-    
+
+    public HexCell[] Cells => cells;
+
+    public void Retriangulate()
+    {
+        hexMesh.Triangulate(cells);
+    }
+
+    // Emprise brute (non mise a l'echelle) de la grille, dans son propre
+    // espace local (X/Z = sol, Y = elevation). Sert de base au calcul du
+    // facteur d'echelle pour recouvrir une zone cible (cf. SandboxHexBridge).
+    public Bounds GetLocalBounds() => hexMesh.LocalBounds;
+
     private void Awake()
     {
-        gridCanvas = GetComponentInChildren<Canvas>();
         hexMesh = GetComponentInChildren<HexMesh>();
         GeneterateGrid();
     }
@@ -32,18 +33,22 @@ public class HexGrid : MonoBehaviour
     {
         hexMesh.Triangulate(cells);
     }
-    void Update () {
 
-    }
-    
-
-    public void ColorCell(Vector3 position, Color color)
+    public HexCell GetCellAtPosition(Vector3 worldPosition)
     {
-        position = transform.InverseTransformPoint(position);
+        Vector3 position = transform.InverseTransformPoint(worldPosition);
         HexCoordinates coordinates = HexCoordinates.FromPosition(position);
         int index = coordinates.X + coordinates.Z * width + coordinates.Z / 2;
-        HexCell cell = cells[index];
-        cell.color = color;
+        if (index < 0 || index >= cells.Length) return null;
+        return cells[index];
+    }
+
+    public void ToggleCellTerrainType(Vector3 worldPosition)
+    {
+        HexCell cell = GetCellAtPosition(worldPosition);
+        if (cell == null) return;
+
+        cell.ToggleTerrainType();
         hexMesh.Triangulate(cells);
     }
 
@@ -58,7 +63,7 @@ public class HexGrid : MonoBehaviour
         cell.transform.SetParent(transform, false);
         cell.transform.localPosition = position;
         cell.coordinates = HexCoordinates.FromOffsetCoordiantes(x, z);
-        cell.color = defaultColor;
+        cell.Elevation = 0;
 
         if (x > 0)
         {
@@ -84,11 +89,6 @@ public class HexGrid : MonoBehaviour
                 }
             }
         }
-        //TextMeshProUGUI label = Instantiate<TextMeshProUGUI>(cellLabelPrefab);
-        //label.rectTransform.SetParent(gridCanvas.transform, false);
-        //label.rectTransform.anchoredPosition =
-            //new Vector2(position.x, position.z);
-        //label.text = cell.coordinates.ToStringOnSeparateLines();
     }
 
     void GeneterateGrid()

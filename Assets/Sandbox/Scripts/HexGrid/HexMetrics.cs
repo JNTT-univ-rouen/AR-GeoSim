@@ -10,6 +10,10 @@ public class HexMetrics
     public const float outerRadius = 10f;
     public const float innerRadius = outerRadius * 0.8606025404f;
 
+    // Hauteur (en unités Unity) ajoutée par palier d'élévation. Ajuste selon
+    // l'échelle réelle de ton Sandbox / MESH_Z_SCALE.
+    public const float elevationStep = 3f;
+
     static Vector3[] corners =
     {
         new Vector3(0f, 0f, outerRadius),
