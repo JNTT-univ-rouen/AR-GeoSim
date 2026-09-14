@@ -154,6 +154,8 @@ namespace ARSandbox
 
                 if (kinectSensor != null)
                 {
+                    kinectSensor.IsAvailableChanged -= OnKinectAvailableChanged;
+
                     if (kinectSensor.IsOpen)
                     {
                         kinectSensor.Close();
@@ -162,6 +164,11 @@ namespace ARSandbox
                     kinectSensor = null;
                 }
             }
+        }
+
+        private void OnKinectAvailableChanged(object sender, IsAvailableChangedEventArgs e)
+        {
+            Debug.Log($"KinectManager: Kinect {(e.IsAvailable ? "connectee" : "deconnectee")} (IsAvailable={e.IsAvailable}).");
         }
         private IEnumerator Emulate30Hz()
         {
@@ -247,6 +254,14 @@ namespace ARSandbox
                 {
                     kinectSensor.Open();
                 }
+
+                // GetDefault() renvoie un objet meme sans capteur physique branche :
+                // IsOpen veut juste dire qu'on a demande l'ouverture du flux, pas que
+                // le Kinect repond reellement. IsAvailable est la vraie presence
+                // physique ; elle peut mettre un instant a passer a true apres Open(),
+                // d'ou l'abonnement a IsAvailableChanged pour suivre l'etat en direct.
+                Debug.Log($"KinectManager: capteur ouvert (IsOpen={kinectSensor.IsOpen}), IsAvailable={kinectSensor.IsAvailable} pour l'instant.");
+                kinectSensor.IsAvailableChanged += OnKinectAvailableChanged;
 
                 depthFrameReader = kinectSensor.DepthFrameSource.OpenReader();
                 infraredFrameReader = kinectSensor.InfraredFrameSource.OpenReader();
