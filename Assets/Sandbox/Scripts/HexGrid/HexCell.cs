@@ -1,9 +1,18 @@
 using UnityEngine;
 
+// Ordre = index de tranche dans le Texture2DArray _TerrainTextures
+// (cf. HexTerrainTextureArrayBuilder.cs). Sand/Grass/Mud/Stone/Snow :
+// memes noms que les textures du tutoriel Catlike Coding "Hex Map".
+// Tarmac (goudron) : aucune texture "goudron" fournie par le tutoriel,
+// donc generee proceduralement (bruit fractal, gris fonce, meme faible
+// contraste que les 5 autres) dans le meme dossier, textures_clc/tarmac.png.
 public enum HexTerrainType
 {
-    Grassland,
-    Dried,
+    Sand,
+    Grass,
+    Mud,
+    Stone,
+    Snow,
     Tarmac
 }
 
@@ -11,7 +20,7 @@ public class HexCell : MonoBehaviour
 {
 
     public HexCoordinates coordinates;
-    public HexTerrainType terrainType = HexTerrainType.Grassland;
+    public HexTerrainType terrainType = HexTerrainType.Grass;
 
     // Profondeur Sandbox moyenne sous cet hexagone, normalisée (0 = MaxDepth,
     // 1 = MinDepth, cf. SandboxHexBridge.UpdateHexDepthData). Donnée pure :

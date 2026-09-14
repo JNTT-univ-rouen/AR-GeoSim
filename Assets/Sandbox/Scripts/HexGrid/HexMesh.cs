@@ -4,7 +4,7 @@ using System.Collections.Generic;
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class HexMesh : MonoBehaviour {
 
-	// Mesh affiché : remplissage coloré par type de terrain (submesh 0,
+	// Mesh affiché : remplissage texturé par type de terrain (submesh 0,
 	// triangles) + contour blanc de chaque hexagone (submesh 1, triangles
 	// aussi : un ruban fin le long de chaque arête). On n'utilise pas
 	// MeshTopology.Lines pour le contour car sa largeur est fixée à 1px et
@@ -12,26 +12,27 @@ public class HexMesh : MonoBehaviour {
 	[Tooltip("Épaisseur du contour, en unités locales du HexGrid (mêmes unités que HexMetrics.outerRadius).")]
 	public float outlineThickness = 0.4f;
 
-	// Couleur finale (pas un index !) par type de terrain, comme dans le
-	// tutoriel Catlike Coding "Hex Map" (part 2) : cell.color y est deja la
-	// couleur RGB a afficher, ecrite telle quelle en couleur de vertex. Le
-	// blend aux frontieres vient alors juste de l'interpolation GPU normale
-	// entre ces couleurs reelles - contrairement a interpoler un index de
-	// categorie puis le redecoder dans le shader (ce qui produisait des
-	// couleurs de transition fausses, ex: Grassland/Tarmac qui traversait
-	// la valeur de Dried au milieu de la frontiere).
-	[Header("Couleurs par type de terrain")]
-	public Color grasslandColor = new Color(0.28f, 0.62f, 0.32f);
-	public Color driedColor = new Color(0.78f, 0.62f, 0.32f);
-	public Color tarmacColor = new Color(0.22f, 0.22f, 0.23f);
-
 	// Léger décalage vers le haut du contour pour éviter le z-fighting avec
 	// le remplissage sous-jacent (quasi coplanaire par endroits).
 	const float outlineYLift = 0.02f;
 
 	Mesh hexMesh;
 	List<Vector3> vertices;
-	List<Color> colors;
+
+	// Poids de melange "splat map" par vertex (comme le tutoriel Catlike
+	// Coding "Hex Map" part 14) : R/G/B = poids des jusqu'a 3 textures de
+	// terrain identifiees par terrainTypes (meme index de vertex). Une
+	// cellule pleine utilise (1,0,0) ; le pont vers un voisin degrade
+	// (1,0,0)->(0,1,0) ; le triangle de coin entre 3 cellules degrade vers
+	// (0,0,1) pour la troisieme. Contrairement a interpoler un index de
+	// categorie (ancienne version), interpoler des poids a un sens : le
+	// shader reconstruit la couleur finale en sommant Texture[i] * poids[i].
+	List<Color> weights;
+
+	// Index de texture (dans le Texture2DArray _TerrainTextures) associe a
+	// chaque canal de poids R/G/B, pour ce vertex. cf. HexTerrain.shader.
+	List<Vector3> terrainTypes;
+
 	List<int> triangles;
 
 	List<Vector3> outlineVertices;
@@ -46,11 +47,16 @@ public class HexMesh : MonoBehaviour {
 	// Emprise du mesh affiché, dans l'espace local du HexGrid (X/Z = sol, Y = elevation).
 	public Bounds LocalBounds => hexMesh.bounds;
 
+	static readonly Color Weights1 = new Color(1f, 0f, 0f);
+	static readonly Color Weights2 = new Color(0f, 1f, 0f);
+	static readonly Color Weights3 = new Color(0f, 0f, 1f);
+
 	void Awake () {
 		GetComponent<MeshFilter>().mesh = hexMesh = new Mesh();
 		hexMesh.name = "Hex Mesh";
 		vertices = new List<Vector3>();
-		colors = new List<Color>();
+		weights = new List<Color>();
+		terrainTypes = new List<Vector3>();
 		triangles = new List<int>();
 		outlineVertices = new List<Vector3>();
 		outlineIndices = new List<int>();
@@ -63,7 +69,8 @@ public class HexMesh : MonoBehaviour {
 	public void Triangulate (HexCell[] cells) {
 		hexMesh.Clear();
 		vertices.Clear();
-		colors.Clear();
+		weights.Clear();
+		terrainTypes.Clear();
 		triangles.Clear();
 		outlineVertices.Clear();
 		outlineIndices.Clear();
@@ -84,15 +91,18 @@ public class HexMesh : MonoBehaviour {
 			offsetOutlineIndices.Add(outlineIndices[i] + fillVertexCount);
 		}
 
-		// Mesh.colors doit couvrir tous les vertices (remplissage + contour),
-		// même si le shader du contour ne lit pas cette couleur.
-		List<Color> allColors = new List<Color>(colors);
+		// Mesh.colors / UV2 doivent couvrir tous les vertices (remplissage +
+		// contour), même si le shader du contour ne les lit pas.
+		List<Color> allWeights = new List<Color>(weights);
+		List<Vector3> allTerrainTypes = new List<Vector3>(terrainTypes);
 		for (int i = 0; i < outlineVertices.Count; i++) {
-			allColors.Add(Color.white);
+			allWeights.Add(Color.white);
+			allTerrainTypes.Add(Vector3.zero);
 		}
 
 		hexMesh.vertices = allVertices.ToArray();
-		hexMesh.colors = allColors.ToArray();
+		hexMesh.colors = allWeights.ToArray();
+		hexMesh.SetUVs(2, allTerrainTypes);
 		hexMesh.subMeshCount = 2;
 		hexMesh.SetTriangles(triangles.ToArray(), 0);
 		hexMesh.SetTriangles(offsetOutlineIndices.ToArray(), 1);
@@ -158,18 +168,11 @@ public class HexMesh : MonoBehaviour {
 		Vector3 v2 = center + HexMetrics.GetSecondSolidCorner(direction);
 
 		AddTriangle(center, v1, v2);
-		AddTriangleColor(TerrainVertexColor(cell));
+		AddTriangleColor(Weights1);
+		AddTriangleTerrainTypes(cell.terrainType);
 
 		if (direction <= HexDirection.SE) {
 			TriangulateConnection(direction, cell, v1, v2);
-		}
-	}
-
-	Color TerrainVertexColor (HexCell cell) {
-		switch (cell.terrainType) {
-			case HexTerrainType.Dried: return driedColor;
-			case HexTerrainType.Tarmac: return tarmacColor;
-			default: return grasslandColor;
 		}
 	}
 
@@ -187,14 +190,16 @@ public class HexMesh : MonoBehaviour {
 		v4.y = neighbor.Position.y;
 
 		AddQuad(v1, v2, v3, v4);
-		AddQuadColor(TerrainVertexColor(cell), TerrainVertexColor(neighbor));
+		AddQuadColor(Weights1, Weights2);
+		AddQuadTerrainTypes(cell.terrainType, neighbor.terrainType);
 
 		HexCell nextNeighbor = cell.GetNeighbor(direction.Next());
 		if (direction <= HexDirection.E && nextNeighbor != null) {
 			Vector3 v5 = v2 + HexMetrics.GetBridge(direction.Next());
 			v5.y = nextNeighbor.Position.y;
 			AddTriangle(v2, v4, v5);
-			AddTriangleColor(TerrainVertexColor(cell), TerrainVertexColor(neighbor), TerrainVertexColor(nextNeighbor));
+			AddTriangleColor(Weights1, Weights2, Weights3);
+			AddTriangleTerrainTypes(cell.terrainType, neighbor.terrainType, nextNeighbor.terrainType);
 		}
 
 	}
@@ -210,15 +215,28 @@ public class HexMesh : MonoBehaviour {
 	}
 
 	void AddTriangleColor (Color color) {
-		colors.Add(color);
-		colors.Add(color);
-		colors.Add(color);
+		weights.Add(color);
+		weights.Add(color);
+		weights.Add(color);
 	}
 
 	void AddTriangleColor (Color c1, Color c2, Color c3) {
-		colors.Add(c1);
-		colors.Add(c2);
-		colors.Add(c3);
+		weights.Add(c1);
+		weights.Add(c2);
+		weights.Add(c3);
+	}
+
+	// Une seule texture pour tout le triangle (fan plein d'une cellule) :
+	// le canal R (poids 1) pointe sur cette texture, G/B sont inutilises.
+	void AddTriangleTerrainTypes (HexTerrainType type) {
+		AddTriangleTerrainTypes(type, type, type);
+	}
+
+	void AddTriangleTerrainTypes (HexTerrainType type1, HexTerrainType type2, HexTerrainType type3) {
+		Vector3 types = new Vector3((int)type1, (int)type2, (int)type3);
+		terrainTypes.Add(types);
+		terrainTypes.Add(types);
+		terrainTypes.Add(types);
 	}
 
 	void AddQuad (Vector3 v1, Vector3 v2, Vector3 v3, Vector3 v4) {
@@ -236,16 +254,19 @@ public class HexMesh : MonoBehaviour {
 	}
 
 	void AddQuadColor (Color c1, Color c2) {
-		colors.Add(c1);
-		colors.Add(c1);
-		colors.Add(c2);
-		colors.Add(c2);
+		weights.Add(c1);
+		weights.Add(c1);
+		weights.Add(c2);
+		weights.Add(c2);
 	}
 
-	void AddQuadColor (Color c1, Color c2, Color c3, Color c4) {
-		colors.Add(c1);
-		colors.Add(c2);
-		colors.Add(c3);
-		colors.Add(c4);
+	// Pont entre 2 cellules : canal B inutilise (poids 0) sur tout le quad,
+	// on y remet type1 par simplicite (valeur d'index toujours valide).
+	void AddQuadTerrainTypes (HexTerrainType type1, HexTerrainType type2) {
+		Vector3 types = new Vector3((int)type1, (int)type2, (int)type1);
+		terrainTypes.Add(types);
+		terrainTypes.Add(types);
+		terrainTypes.Add(types);
+		terrainTypes.Add(types);
 	}
 }

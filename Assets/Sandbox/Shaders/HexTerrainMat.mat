@@ -19,12 +19,17 @@ Material:
   m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
-  m_LockedProperties:
+  m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
-    m_TexEnvs: []
+    m_TexEnvs:
+    - _TerrainTextures:
+        m_Texture: {fileID: 18700000, guid: 0602373c0447e934c8b16b3ab9f9bfd2, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
-    m_Floats: []
+    m_Floats:
+    - _TextureScale: 0.05
     m_Colors: []
   m_BuildTextureStacks: []
   m_AllowLocking: 1
