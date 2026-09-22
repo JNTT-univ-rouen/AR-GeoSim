@@ -13,6 +13,11 @@ public class HexGrid : MonoBehaviour
 
     public HexCell[] Cells => cells;
 
+    // Vrai une fois le mesh triangule (fin de Start). Entre Awake et Start
+    // (ex: objet active en cours de partie), les bounds du mesh sont vides :
+    // ne pas s'en servir pour recaler la grille (cf. SandboxHexBridge).
+    public bool IsReady { get; private set; }
+
     public void Retriangulate()
     {
         hexMesh.Triangulate(cells);
@@ -32,6 +37,7 @@ public class HexGrid : MonoBehaviour
     private void Start()
     {
         hexMesh.Triangulate(cells);
+        IsReady = true;
     }
 
     public HexCell GetCellAtPosition(Vector3 worldPosition)

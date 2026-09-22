@@ -60,6 +60,11 @@ public class SandboxHexBridge : MonoBehaviour
         ARSandbox.Sandbox.OnSandboxReady -= HandleSandboxReady;
     }
 
+    // Faux si le HexGrid est masqué (toggle Sandbox Settings, y compris
+    // désactivé dès le lancement : Awake/Start jamais exécutés) ou pas
+    // encore triangulé (activé en cours de partie, Start pas encore passé).
+    bool IsHexGridReady => hexGrid != null && hexGrid.isActiveAndEnabled && hexGrid.IsReady;
+
     void HandleSandboxReady()
     {
         hasFitCurrentCalibration = false;
@@ -68,12 +73,13 @@ public class SandboxHexBridge : MonoBehaviour
 
     void Update()
     {
-        if (sandbox == null || hexGrid == null) return;
+        if (sandbox == null || !IsHexGridReady) return;
         if (!sandbox.SandboxReady) return;
 
         // Filet de sécurité si ce composant était désactivé/absent quand
         // OnSandboxReady a été levé (ex: le Sandbox était déjà calibré
-        // avant l'activation de cet objet).
+        // avant l'activation de cet objet), ou si le HexGrid était masqué
+        // (toggle Sandbox Settings) au moment d'une recalibration.
         if (autoFitOnReady && !hasFitCurrentCalibration) FitHexGridToSandbox();
 
         frameCounter++;
@@ -94,7 +100,9 @@ public class SandboxHexBridge : MonoBehaviour
     /// </summary>
     public void FitHexGridToSandbox()
     {
-        if (sandbox == null || hexGrid == null || !sandbox.SandboxReady) return;
+        // Si le HexGrid n'est pas pret, hasFitCurrentCalibration reste a
+        // false : Update() refera le recalage des qu'il le sera.
+        if (sandbox == null || !IsHexGridReady || !sandbox.SandboxReady) return;
 
         ARSandbox.SandboxDescriptor desc = sandbox.GetSandboxDescriptor();
         if (desc == null) return;

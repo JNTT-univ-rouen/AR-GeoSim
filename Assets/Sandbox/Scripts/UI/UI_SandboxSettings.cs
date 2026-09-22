@@ -39,6 +39,8 @@ namespace ARSandbox
         public Image UI_LabelSettingsBtn;
 
         // General Settings 
+        public HexGrid HexGrid;
+        public Toggle UI_HexGridToggle;
         public Slider UI_ResolutionSlider;
         public Slider UI_ContourSlider;
         public Slider UI_MinorContourSlider;
@@ -150,6 +152,7 @@ namespace ARSandbox
             if (currentMenuOpen == MenuOpen.General) UI_OpenGeneralSettings();
             else if (currentMenuOpen == MenuOpen.ContourLabels) UI_OpenLabelSettings();
 
+            UI_HexGridToggle.SetIsOnWithoutNotify(HexGrid.gameObject.activeSelf);
             UI_ResolutionSlider.value = (int)Sandbox.SandboxResolution;
             UI_ContourSlider.value = Sandbox.MajorContourSpacing * 2;
             UI_MinorContourSlider.value = Sandbox.MinorContours;
@@ -199,6 +202,11 @@ namespace ARSandbox
             {
                 UI_SetEndElevationSpacing();
             }
+        }
+
+        public void UI_ToggleHexGrid(bool toggleVal)
+        {
+            HexGrid.gameObject.SetActive(toggleVal);
         }
 
         public void UI_ToggleContourLabels(bool toggleVal)
