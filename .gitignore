@@ -44,3 +44,6 @@ sysinfo.txt
 
 # macOS specific
 .DS_Store
+# Unity user-local settings (fenetres, dernier mode Play)
+UserSettings/Layouts/
+UserSettings/PlayModeUserSettings.asset
