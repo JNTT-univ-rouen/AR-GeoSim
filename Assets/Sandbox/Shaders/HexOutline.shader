@@ -1,19 +1,28 @@
 // Contour des hexagones du HexGrid : ligne pleine unie (pas de couleur par
 // vertex, contrairement a HexTerrain.shader), dessinee sur le submesh
 // MeshTopology.Lines construit par HexMesh (cf. AddCellOutline).
+//
+// Meme traitement Transparent/ZTest Always que HexTerrain.shader (voir son
+// commentaire d'en-tete) : le contour doit lui aussi toujours passer devant
+// le terrain du Sandbox, quel que soit le relief local du sable.
 Shader "Unlit/HexOutline"
 {
 	Properties
 	{
 		_Color ("Color", Color) = (1,1,1,1)
+		_Opacity ("Opacity", Range(0,1)) = 1
 	}
 	SubShader
 	{
-		Tags { "RenderType"="Opaque" }
+		Tags { "RenderType"="Transparent" "Queue"="Transparent" "IgnoreProjector"="True" }
 		LOD 10
 
 		Pass
 		{
+			ZWrite Off
+			ZTest Always
+			Blend SrcAlpha OneMinusSrcAlpha
+
 			CGPROGRAM
 			#pragma vertex vert
 			#pragma fragment frag
@@ -21,6 +30,7 @@ Shader "Unlit/HexOutline"
 			#include "UnityCG.cginc"
 
 			fixed4 _Color;
+			float _Opacity;
 
 			struct appdata
 			{
@@ -41,7 +51,9 @@ Shader "Unlit/HexOutline"
 
 			fixed4 frag (v2f i) : SV_Target
 			{
-				return _Color;
+				fixed4 col = _Color;
+				col.a *= _Opacity;
+				return col;
 			}
 			ENDCG
 		}

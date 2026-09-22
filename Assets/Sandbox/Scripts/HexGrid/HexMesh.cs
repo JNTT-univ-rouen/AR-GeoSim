@@ -12,6 +12,27 @@ public class HexMesh : MonoBehaviour {
 	[Tooltip("Épaisseur du contour, en unités locales du HexGrid (mêmes unités que HexMetrics.outerRadius).")]
 	public float outlineThickness = 0.4f;
 
+	// Remplissage et contour sont en Queue Transparent + ZTest Always (cf.
+	// en-tête de HexTerrain.shader/HexOutline.shader) pour toujours passer
+	// devant le terrain du Sandbox, quel que soit le relief local. _Opacity
+	// contrôle alors à quel point la vue du Sandbox reste visible en dessous.
+	[Range(0f, 1f)]
+	[Tooltip("Opacité du HexGrid (remplissage + contour), pour laisser transparaître la vue du Sandbox en dessous. Modifiable en direct, y compris en Play.")]
+	public float opacity = 0.5f;
+
+	// Les textures de terrain sont volontairement peu saturées, et le blend
+	// alpha avec le sable dilue encore la couleur : le résultat est pâle,
+	// surtout via le projecteur physique. Ce curseur compense sans toucher
+	// à l'opacité (cf. HexTerrain.shader).
+	[Range(0f, 3f)]
+	[Tooltip("Saturation du remplissage (1 = couleur d'origine des textures, >1 = plus vif). Modifiable en direct, y compris en Play.")]
+	public float colorSaturation = 1.5f;
+
+	MeshRenderer meshRenderer;
+	MaterialPropertyBlock propertyBlock;
+	static readonly int OpacityID = Shader.PropertyToID("_Opacity");
+	static readonly int SaturationID = Shader.PropertyToID("_Saturation");
+
 	// Léger décalage vers le haut du contour pour éviter le z-fighting avec
 	// le remplissage sous-jacent (quasi coplanaire par endroits).
 	const float outlineYLift = 0.02f;
@@ -64,6 +85,31 @@ public class HexMesh : MonoBehaviour {
 		collisionMesh = new Mesh();
 		collisionMesh.name = "Hex Mesh (Collision)";
 		meshCollider = gameObject.AddComponent<MeshCollider>();
+
+		meshRenderer = GetComponent<MeshRenderer>();
+		propertyBlock = new MaterialPropertyBlock();
+		ApplyMaterialProperties();
+	}
+
+	// Applique `opacity`/`colorSaturation` aux matériaux (remplissage +
+	// contour, ce dernier ignorant simplement _Saturation) via un
+	// MaterialPropertyBlock, pour éviter de dupliquer les assets partagés
+	// (renderer.material les instancierait silencieusement). Appelé une
+	// fois au démarrage et à chaque changement de valeur dans l'inspecteur
+	// (y compris en Play, via OnValidate).
+	void ApplyMaterialProperties () {
+		if (meshRenderer == null) return;
+		if (propertyBlock == null) propertyBlock = new MaterialPropertyBlock();
+
+		meshRenderer.GetPropertyBlock(propertyBlock);
+		propertyBlock.SetFloat(OpacityID, opacity);
+		propertyBlock.SetFloat(SaturationID, colorSaturation);
+		meshRenderer.SetPropertyBlock(propertyBlock);
+	}
+
+	void OnValidate () {
+		if (meshRenderer == null) meshRenderer = GetComponent<MeshRenderer>();
+		ApplyMaterialProperties();
 	}
 
 	public void Triangulate (HexCell[] cells) {
