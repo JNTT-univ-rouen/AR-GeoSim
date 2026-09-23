@@ -37,6 +37,13 @@ namespace Sandbox.Scripts.ServerClient
         private byte[] tempImageData;
         private List<Arucos> tempArcuos;
         
+        [Header("Marqueurs ArUco")]
+        [Tooltip("Le serveur detecte sur l'image retournee verticalement (np.flipud, cote Python) : la ligne 0 qu'il renvoie correspond alors a la derniere ligne envoyee. Si les marqueurs tombent en miroir haut/bas dans le bac, decocher.")]
+        public bool flipMarkerY = true;
+
+        [Tooltip("Decalage en z applique a la position trouvee, comme le fait HandInput pour les gestes de la main : l'effet doit se declencher juste au-dessus du sable, pas dedans.")]
+        public float markerDropOffsetZ = -5f;
+
         //UI Elements
         public TMP_Text requestLog;
         public TMP_InputField  ipInput;
@@ -162,7 +169,11 @@ namespace Sandbox.Scripts.ServerClient
         {
             //Faut que je revois dans le programme originel comment ils envoient la photo. Je peux générer la photo, je peux ausssi accéder à la texture2D si besoin (il me semble). Après ça faudra voir ce que je peux en faire sur python
             var infraredTexture = Sandbox.InfraredPicture();
-            
+
+            // Dimensions gardees a part : elles servent aussi dans la reponse,
+            // pour retrouver la position monde de chaque marqueur.
+            int imageWidth = infraredTexture.width;
+            int imageHeight = infraredTexture.height;
 
             float[] pixelData = new float[infraredTexture.width * infraredTexture.height];
             Color[] pixels = infraredTexture.GetPixels();
@@ -174,7 +185,7 @@ namespace Sandbox.Scripts.ServerClient
             var pixelDataBytes = new byte[pixelData.Length * sizeof(float)];
             Buffer.BlockCopy(pixelData, 0, pixelDataBytes, 0, pixelDataBytes.Length);
 
-            string url = $"{_sanitizedUrl}?width={infraredTexture.width}&height={infraredTexture.height}&minDepth={sandboxDescriptor.MinDepth}&maxDepth={sandboxDescriptor.MaxDepth}";
+            string url = $"{_sanitizedUrl}?width={imageWidth}&height={imageHeight}&minDepth={sandboxDescriptor.MinDepth}&maxDepth={sandboxDescriptor.MaxDepth}";
 
             UnityWebRequest webRequest = new UnityWebRequest(url, httpDropdown.options[httpDropdown.value].text);
             webRequest.uploadHandler = new UploadHandlerRaw(pixelDataBytes);
@@ -198,12 +209,18 @@ namespace Sandbox.Scripts.ServerClient
                         UserLog(webRequest.responseCode+" - "+webRequest.result);
                         if (!_configSaved) SaveConfig(); // Save the config after the first successful request
                         tempImageData = Convert.FromBase64String(responseData.Image);
-                        tempArcuos = responseData.Aruco;
+                        tempArcuos = responseData.Aruco ?? new List<Arucos>();
                         foreach (var aruco in tempArcuos)
                         {
-                            Vector3 temp = new Vector3(aruco.Position[0], aruco.Position[1], 800);
-                            UserLog((temp.x.ToString()+";"+temp.y.ToString()));
-                            WaterSimulation.DropWater(temp);
+                            if (TryArucoToWorldPos(aruco, imageHeight, out Vector3 worldPosition))
+                            {
+                                UserLog($"ArUco {aruco.Id} : pixel ({aruco.Position[0]},{aruco.Position[1]}) -> monde {worldPosition}");
+                                WaterSimulation.DropWater(worldPosition);
+                            }
+                            else
+                            {
+                                UserLog($"ArUco {aruco.Id} ignore : hors de la zone calibree");
+                            }
                         }
                         ServerFrameReceived = true;
                     }
@@ -218,6 +235,45 @@ namespace Sandbox.Scripts.ServerClient
             //Destroy the temporary Texture2D to free up memory
             //Destroy(infraredTexture);
         }
+        /// <summary>
+        /// Convertit la position d'un marqueur, exprimee en pixels de l'image
+        /// envoyee au serveur, en position monde du Sandbox.
+        ///
+        /// L'image infrarouge envoyee est deja recadree sur la zone calibree
+        /// (rawInfraredTex fait exactement calibrationDescriptor.DataSize) : un
+        /// de ses pixels est donc directement une position "data", celle que
+        /// Sandbox.DataPosToWorldPos sait convertir. Le z vient du relief reel
+        /// sous ce point et non d'une valeur fixe, sinon l'effet se declenche
+        /// sous le sable ou bien au-dessus du bac.
+        ///
+        /// Renvoie false si le marqueur tombe hors de la zone calibree : dans
+        /// ce cas il n'y a pas de hauteur de sable a lui associer.
+        /// </summary>
+        private bool TryArucoToWorldPos(Arucos aruco, int imageHeight, out Vector3 worldPosition)
+        {
+            worldPosition = Vector3.zero;
+
+            if (aruco == null || aruco.Position == null || aruco.Position.Count < 2)
+            {
+                return false;
+            }
+
+            int x = aruco.Position[0];
+            int y = flipMarkerY ? imageHeight - 1 - aruco.Position[1] : aruco.Position[1];
+
+            worldPosition = Sandbox.DataPosToWorldPos(new Point(x, y));
+
+            // GetDepthFromWorldPos renvoie -1 quand le point sort du maillage.
+            float surfaceZ = Sandbox.GetDepthFromWorldPos(worldPosition);
+            if (surfaceZ < 0f)
+            {
+                return false;
+            }
+
+            worldPosition.z = surfaceZ + markerDropOffsetZ;
+            return true;
+        }
+
         private void SendFramePayload()
         {
             var renderTexture = Sandbox.CurrentProcessedRT;
