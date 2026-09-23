@@ -47,3 +47,4 @@ sysinfo.txt
 # Unity user-local settings (fenetres, dernier mode Play)
 UserSettings/Layouts/
 UserSettings/PlayModeUserSettings.asset
+build.log
