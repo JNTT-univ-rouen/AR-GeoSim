@@ -622,28 +622,36 @@ namespace ARSandbox.WaterSimulation
                     stabilityThreshold--;
                     if (stabilityThreshold < 0)
                     {
-                        Debug.Log("Stable hand detected, can drop water");
-                        //Vector3 handPosition = listAvgPoint[getPosition-1];
-                        int gestureID = nextGestureID;
-                        
-                        // Add detected hand to HandInput system
-                        if (enableHandInputIntegration)
-                        {
-                            HandInput.OnHandHovered(gestureID, currentHandPosition2);
-                            //Debug.Log("Gesture ID: " + gestureID);
-                        }
-                        
-                        // Check if frame is frozen - store gesture instead of dropping water immediately
-                        if (FreezeFrame.isFrameFrozen)
-                        {
-                            //Sandbox.StoreGesture(currentHandPosition, gestureID);
-                        }
-                        else
-                        {
-                            // Normal water drop when not frozen
-                            //DropWater(currentHandPosition);
-                        }
-                    }  
+                        // DESACTIVE : une main ou un objet stable au-dessus du bac
+                        // creait ici un geste, via HandInput.OnHandHovered. Or un
+                        // geste equivaut a un clic sur le Sandbox : tous ses
+                        // consommateurs reagissaient (gouttes d'eau, mais aussi
+                        // peinture d'une cellule du HexGrid, feu, vent). Avec les
+                        // marqueurs ArUco poses sur le sable, ces declenchements
+                        // involontaires sont ingerables.
+                        //
+                        // C'est le seul endroit du projet qui cree un geste a
+                        // partir de la main : le commenter les coupe tous.
+                        // Pour les reactiver, decommenter le bloc ci-dessous (et
+                        // verifier que enableHandInputIntegration est coche).
+                        //
+                        // Debug.Log("Stable hand detected, can drop water");
+                        // int gestureID = nextGestureID;
+                        //
+                        // if (enableHandInputIntegration)
+                        // {
+                        //     HandInput.OnHandHovered(gestureID, currentHandPosition2);
+                        // }
+                        //
+                        // if (FreezeFrame.isFrameFrozen)
+                        // {
+                        //     //Sandbox.StoreGesture(currentHandPosition, gestureID);
+                        // }
+                        // else
+                        // {
+                        //     //DropWater(currentHandPosition);
+                        // }
+                    }
                 }
                 if(Vector3.Distance(currentHandPosition, lastHandPosition) > maxHandMovement)
                 {
