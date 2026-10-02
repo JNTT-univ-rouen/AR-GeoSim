@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 524e860dc4f85f944ad7ea95d8175dcd, type: 3}
+  m_Name: ArucoActionCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::ARSandbox.Aruco.ArucoActionCatalog
+  actions:
+  - {fileID: 11400000, guid: 8dcca328a9040c242985fe13a27473d8, type: 2}
+  - {fileID: 11400000, guid: 0cda7a71de9cc984eb669375d9e30406, type: 2}
+  - {fileID: 11400000, guid: 33bdfa8bb14f7ee41a9e259ba94089b0, type: 2}
+  - {fileID: 11400000, guid: d6a514cb3641f7e4d8983a4f124dfe34, type: 2}
+  - {fileID: 11400000, guid: cb39aad7d676ccd4fb75d9a919a67bf7, type: 2}
+  - {fileID: 11400000, guid: a9348317797a8154184e381e5e36e091, type: 2}
+  - {fileID: 11400000, guid: 16d85a36b4886684ba8fc0333083f879, type: 2}
+  - {fileID: 11400000, guid: 9212b8d6f132cdb4e910c369b4677852, type: 2}
+  - {fileID: 11400000, guid: d600597df5c5ee645923d6968ffa362f, type: 2}
+  - {fileID: 11400000, guid: ec87907607a602245ab6001f34377923, type: 2}
+  - {fileID: 11400000, guid: ab9dacce1c29f2841822d522a371bdb9, type: 2}
+  - {fileID: 11400000, guid: bdefc8ffa3f28714b8fc38bc1c659b5f, type: 2}
+  - {fileID: 11400000, guid: 1850c6383e2d383438d34d2d2c91a9e5, type: 2}
+  - {fileID: 11400000, guid: 7b86f41570a74b941a9ed54afe982298, type: 2}

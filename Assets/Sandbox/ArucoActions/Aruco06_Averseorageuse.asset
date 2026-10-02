@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6dc19c68131e190458f9bf33b21ec6d1, type: 3}
+  m_Name: Aruco06_Averseorageuse
+  m_EditorClassIdentifier: Assembly-CSharp::ARSandbox.Aruco.Actions.PrecipitationArucoAction
+  markerId: 6
+  objectName: Averse orageuse
+  family: 1
+  scope: 1
+  exclusiveInFamily: 0
+  cloudKind: 1

@@ -53266,6 +53266,9 @@ GameObject:
   m_Component:
   - component: {fileID: 1205301047}
   - component: {fileID: 1205301048}
+  - component: {fileID: 1205301050}
+  - component: {fileID: 1205301049}
+  - component: {fileID: 1205301051}
   m_Layer: 0
   m_Name: ServerClient
   m_TagString: Untagged
@@ -53304,12 +53307,76 @@ MonoBehaviour:
   WaterSimulation: {fileID: 236758517}
   ServerShader: {fileID: 4800000, guid: 3d08edb456663fc4ca1b87ac4ac07f8a, type: 3}
   ModeHandler: {fileID: 1860675437}
+  flipMarkerY: 1
+  markerDropOffsetZ: -5
+  arucoRouter: {fileID: 1205301050}
+  logDetectedMarkers: 1
   requestLog: {fileID: 208712186}
   ipInput: {fileID: 565351428}
   portInput: {fileID: 558941690}
   endpointInput: {fileID: 34848410}
   httpDropdown: {fileID: 670923258}
   startStopButtonText: {fileID: 423527804}
+--- !u!114 &1205301049
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1205301046}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6922ed6a6f6e7454d95728fb0d504dde, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ARSandbox.Aruco.ArucoSceneContext
+  sandbox: {fileID: 1466343887}
+  waterSimulation: {fileID: 236758517}
+  topographyLabelManager: {fileID: 1802749924}
+  seasonMenu: {fileID: 1780317997}
+  cloudManager: {fileID: 1205301051}
+--- !u!114 &1205301050
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1205301046}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b9727aef77803de4c9a0a662ece447d0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ARSandbox.Aruco.ArucoMarkerRouter
+  catalog: {fileID: 11400000, guid: 67ab28e9ebfa18d4f95d15e1c7054ebf, type: 2}
+  sceneContext: {fileID: 1205301049}
+  lostAfterSeconds: 1
+  logEvents: 1
+--- !u!114 &1205301051
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1205301046}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6594bf690213325429882f3fa964db95, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ARSandbox.Aruco.Clouds.CloudManager
+  sandbox: {fileID: 1466343887}
+  waterSimulation: {fileID: 236758517}
+  hexGrid: {fileID: 369628857}
+  rainSprite: {fileID: 21300000, guid: b083cf24e6226704e96e97873794fa7c, type: 3}
+  stormSprite: {fileID: 21300000, guid: 5439c1632e0a6704ea57c25ed540ab2a, type: 3}
+  cloudShader: {fileID: 4800000, guid: 1afc5615c41c93c479f384e5bcc127c3, type: 3}
+  cloudHeight: 40
+  placementValidationDelay: 1.5
+  activationDelay: 3
+  maxClouds: 3
+  dropsPerSecond: 6
+  waterReserve: 120
+  rainRadius: 8
+  stormIntensityFactor: 2
+  logEvents: 1
 --- !u!1 &1208790177
 GameObject:
   m_ObjectHideFlags: 0
