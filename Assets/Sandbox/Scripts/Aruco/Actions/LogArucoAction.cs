@@ -11,13 +11,13 @@ namespace ARSandbox.Aruco.Actions
     [CreateAssetMenu(fileName = "LogArucoAction", menuName = "Sandbox/ArUco/Action de test (console)")]
     public class LogArucoAction : ArucoAction
     {
-        public override void OnMarkerAppeared(ArucoMarkerReading reading)
+        public override void OnMarkerAppeared(ArucoMarkerReading reading, ArucoSceneContext context)
         {
             Debug.Log($"{this} : apparition en {reading.PixelPosition} px" +
                       (reading.HasWorldPosition ? $" / monde {reading.WorldPosition}" : ""));
         }
 
-        public override void OnMarkerDisappeared()
+        public override void OnMarkerDisappeared(ArucoSceneContext context)
         {
             Debug.Log($"{this} : disparition");
         }

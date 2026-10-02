@@ -41,26 +41,38 @@ namespace ARSandbox.Aruco
         public ArucoActionScope Scope => scope;
         public bool ExclusiveInFamily => exclusiveInFamily;
 
-        /// <summary>Le marqueur vient d'apparaitre dans le champ de la camera.</summary>
-        public virtual void OnMarkerAppeared(ArucoMarkerReading reading) { }
+        /// <summary>
+        /// Le marqueur vient d'apparaitre dans le champ de la camera.
+        /// `context` donne acces aux objets de scene (cf. ArucoSceneContext) :
+        /// un asset ne pouvant pas les referencer lui-meme.
+        /// </summary>
+        public virtual void OnMarkerAppeared(ArucoMarkerReading reading, ArucoSceneContext context) { }
 
         /// <summary>
         /// Le marqueur est toujours la. Appele a chaque detection : sa position
         /// peut avoir bouge si l'objet a ete deplace.
         /// </summary>
-        public virtual void OnMarkerHeld(ArucoMarkerReading reading) { }
+        public virtual void OnMarkerHeld(ArucoMarkerReading reading, ArucoSceneContext context) { }
 
         /// <summary>
         /// Le marqueur n'est plus detecte (retire du bac, ou masque au dela du
         /// delai de tolerance du routeur).
         /// </summary>
-        public virtual void OnMarkerDisappeared() { }
+        public virtual void OnMarkerDisappeared(ArucoSceneContext context) { }
+
+        /// <summary>
+        /// Meme evenement, mais avec la derniere detection connue du marqueur :
+        /// utile quand l'effet depend de l'endroit ou la carte etait posee (un
+        /// nuage, par exemple). Par defaut, se ramene a OnMarkerDisappeared.
+        /// </summary>
+        public virtual void OnMarkerDisappearedAt(ArucoMarkerReading lastReading, ArucoSceneContext context)
+            => OnMarkerDisappeared(context);
 
         /// <summary>
         /// Appelee quand une autre action exclusive de la meme famille prend le
         /// relais. Par defaut, equivaut a une disparition.
         /// </summary>
-        public virtual void OnSupersededInFamily() => OnMarkerDisappeared();
+        public virtual void OnSupersededInFamily(ArucoSceneContext context) => OnMarkerDisappeared(context);
 
         public override string ToString() =>
             $"[{markerId}] {(string.IsNullOrEmpty(objectName) ? name : objectName)}";

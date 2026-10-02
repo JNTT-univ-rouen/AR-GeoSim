@@ -19,6 +19,9 @@ namespace ARSandbox.Aruco
     {
         [SerializeField] private ArucoActionCatalog catalog;
 
+        [Tooltip("Objets de scene mis a disposition des actions. Si vide, cherche un ArucoSceneContext sur cet objet.")]
+        [SerializeField] private ArucoSceneContext sceneContext;
+
         [Tooltip("Delai avant de considerer qu'un marqueur a disparu. Evite qu'une main qui passe au-dessus du bac, ou une detection ratee sur une image, ne coupe l'action.")]
         [SerializeField] private float lostAfterSeconds = 1.0f;
 
@@ -39,6 +42,10 @@ namespace ARSandbox.Aruco
         {
             public ArucoAction Action;
             public float LastSeenTime;
+
+            // Derniere detection connue : certaines actions en ont besoin au
+            // moment du retrait, pour savoir ou la carte etait posee.
+            public ArucoMarkerReading LastReading;
         }
 
         /// <summary>
@@ -46,6 +53,11 @@ namespace ARSandbox.Aruco
         /// derniere image. Les marqueurs absents de la liste sont consideres
         /// comme partis une fois le delai de tolerance ecoule.
         /// </summary>
+        void Awake()
+        {
+            if (sceneContext == null) sceneContext = GetComponent<ArucoSceneContext>();
+        }
+
         public void SubmitDetections(IReadOnlyList<ArucoMarkerReading> readings)
         {
             if (catalog == null)
@@ -63,7 +75,8 @@ namespace ARSandbox.Aruco
                     if (activeMarkers.TryGetValue(reading.Id, out ActiveMarker active))
                     {
                         active.LastSeenTime = Time.time;
-                        active.Action.OnMarkerHeld(reading);
+                        active.LastReading = reading;
+                        active.Action.OnMarkerHeld(reading, sceneContext);
                     }
                     else
                     {
@@ -80,7 +93,7 @@ namespace ARSandbox.Aruco
         {
             foreach (ActiveMarker active in activeMarkers.Values)
             {
-                active.Action.OnMarkerDisappeared();
+                active.Action.OnMarkerDisappearedAt(active.LastReading, sceneContext);
             }
             activeMarkers.Clear();
             exclusiveByFamily.Clear();
@@ -93,14 +106,19 @@ namespace ARSandbox.Aruco
                 // Une seule action exclusive par famille : la precedente cede sa place.
                 if (exclusiveByFamily.TryGetValue(action.Family, out ArucoAction previous) && previous != action)
                 {
-                    previous.OnSupersededInFamily();
+                    previous.OnSupersededInFamily(sceneContext);
                     activeMarkers.Remove(previous.MarkerId);
                 }
                 exclusiveByFamily[action.Family] = action;
             }
 
-            activeMarkers[action.MarkerId] = new ActiveMarker { Action = action, LastSeenTime = Time.time };
-            action.OnMarkerAppeared(reading);
+            activeMarkers[action.MarkerId] = new ActiveMarker
+            {
+                Action = action,
+                LastSeenTime = Time.time,
+                LastReading = reading
+            };
+            action.OnMarkerAppeared(reading, sceneContext);
 
             if (logEvents) Debug.Log($"ArUco : apparition de {action}", this);
         }
@@ -116,7 +134,8 @@ namespace ARSandbox.Aruco
 
             foreach (int markerId in lostBuffer)
             {
-                ArucoAction action = activeMarkers[markerId].Action;
+                ActiveMarker lost = activeMarkers[markerId];
+                ArucoAction action = lost.Action;
                 activeMarkers.Remove(markerId);
 
                 if (action.ExclusiveInFamily &&
@@ -125,7 +144,7 @@ namespace ARSandbox.Aruco
                     exclusiveByFamily.Remove(action.Family);
                 }
 
-                action.OnMarkerDisappeared();
+                action.OnMarkerDisappearedAt(lost.LastReading, sceneContext);
 
                 if (logEvents) Debug.Log($"ArUco : disparition de {action}", this);
             }

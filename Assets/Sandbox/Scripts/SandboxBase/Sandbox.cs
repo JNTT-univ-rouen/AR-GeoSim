@@ -327,6 +327,13 @@ namespace ARSandbox
             this.sandboxRenderMaterial = sandboxRenderMaterial;
         }
 
+        /// <summary>
+        /// Shader actuellement utilise pour dessiner le terrain, ou null avant
+        /// l'initialisation. Lecture seule : permet de savoir quelle vue est
+        /// active sans tenir un etat en parallele, qui finirait par mentir.
+        /// </summary>
+        public Shader CurrentShader => NormalMaterial != null ? NormalMaterial.shader : null;
+
         public void SetSandboxShader(Shader sandboxShader)
         {
             NormalMaterial.shader = sandboxShader;

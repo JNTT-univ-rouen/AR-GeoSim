@@ -30,6 +30,23 @@ namespace ARSandbox
         public float greenTerrainAlbedoRepeat = 1f;
         public float driedTerrainAlbedoRepeat = 1f;
 
+        /// <summary>
+        /// Shader associe a une saison du menu, ou null si l'index est inconnu.
+        /// Permet a un appelant de savoir si une saison est deja appliquee, en
+        /// comparant avec Sandbox.CurrentShader.
+        /// </summary>
+        public Shader GetSeasonShader(int season)
+        {
+            switch (season)
+            {
+                case 0: return normalShader;
+                case 1: return springShader;
+                case 2: return winterShader;
+                case 3: return blackAndWhiteShader;
+                default: return null;
+            }
+        }
+
         public void ChangeSeasonDropdown(int season)
         {
             switch (season)

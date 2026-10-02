@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
 using ARSandbox;
+using ARSandbox.Aruco;
 using ARSandbox.WaterSimulation;
 using Newtonsoft.Json;
 using UnityEngine.Networking;
@@ -43,6 +44,18 @@ namespace Sandbox.Scripts.ServerClient
 
         [Tooltip("Decalage en z applique a la position trouvee, comme le fait HandInput pour les gestes de la main : l'effet doit se declencher juste au-dessus du sable, pas dedans.")]
         public float markerDropOffsetZ = -5f;
+
+        [Tooltip("Routeur qui transforme les marqueurs detectes en actions. Sans lui, les marqueurs sont seulement recus, sans effet.")]
+        public ArucoMarkerRouter arucoRouter;
+
+        [Tooltip("Ecrit dans la console et dans le log de l'interface les ID des marqueurs renvoyes par le serveur, a chaque changement.")]
+        public bool logDetectedMarkers = true;
+
+        // Derniere liste d'ID journalisee, pour ne pas repeter la meme ligne.
+        private string _lastLoggedMarkerIds;
+
+        // Reutilisee a chaque reponse, pour ne pas allouer une liste par image.
+        private readonly List<ArucoMarkerReading> arucoReadings = new List<ArucoMarkerReading>();
 
         //UI Elements
         public TMP_Text requestLog;
@@ -210,18 +223,7 @@ namespace Sandbox.Scripts.ServerClient
                         if (!_configSaved) SaveConfig(); // Save the config after the first successful request
                         tempImageData = Convert.FromBase64String(responseData.Image);
                         tempArcuos = responseData.Aruco ?? new List<Arucos>();
-                        foreach (var aruco in tempArcuos)
-                        {
-                            if (TryArucoToWorldPos(aruco, imageHeight, out Vector3 worldPosition))
-                            {
-                                UserLog($"ArUco {aruco.Id} : pixel ({aruco.Position[0]},{aruco.Position[1]}) -> monde {worldPosition}");
-                                WaterSimulation.DropWater(worldPosition);
-                            }
-                            else
-                            {
-                                UserLog($"ArUco {aruco.Id} ignore : hors de la zone calibree");
-                            }
-                        }
+                        DispatchArucoMarkers(tempArcuos, imageHeight);
                         ServerFrameReceived = true;
                     }
                     else
@@ -235,6 +237,67 @@ namespace Sandbox.Scripts.ServerClient
             //Destroy the temporary Texture2D to free up memory
             //Destroy(infraredTexture);
         }
+        /// <summary>
+        /// Transmet les marqueurs de la derniere reponse au routeur, qui les
+        /// convertit en actions (cf. ArucoActionCatalog).
+        ///
+        /// La liste est envoyee meme vide : c'est ainsi que le routeur sait
+        /// qu'une carte a ete retiree du bac.
+        /// </summary>
+        private void DispatchArucoMarkers(List<Arucos> markers, int imageHeight)
+        {
+            LogDetectedMarkers(markers);
+
+            if (arucoRouter == null) return;
+
+            arucoReadings.Clear();
+
+            foreach (Arucos aruco in markers)
+            {
+                if (aruco == null || aruco.Position == null || aruco.Position.Count < 2) continue;
+
+                Vector2 pixelPosition = new Vector2(aruco.Position[0], aruco.Position[1]);
+
+                if (TryArucoToWorldPos(aruco, imageHeight, out Vector3 worldPosition))
+                {
+                    arucoReadings.Add(new ArucoMarkerReading(aruco.Id, pixelPosition, worldPosition));
+                }
+                else
+                {
+                    // Hors zone calibree : l'ID est quand meme transmis, les
+                    // actions globales (qualite du sol, meteo) n'ont pas besoin
+                    // d'une position.
+                    arucoReadings.Add(new ArucoMarkerReading(aruco.Id, pixelPosition));
+                }
+            }
+
+            arucoRouter.SubmitDetections(arucoReadings);
+        }
+
+        /// <summary>
+        /// Journalise les ID renvoyes par le serveur, avant tout filtrage par le
+        /// catalogue : c'est le seul endroit ou l'on voit AUSSI les marqueurs
+        /// inconnus, utile pour verifier qu'une carte imprimee est bien lue.
+        ///
+        /// N'ecrit que lorsque la liste change, le serveur repondant plusieurs
+        /// fois par seconde : une carte posee donne une ligne, pas un flot.
+        /// </summary>
+        private void LogDetectedMarkers(List<Arucos> markers)
+        {
+            if (!logDetectedMarkers) return;
+
+            string ids = markers.Count == 0
+                ? "aucun"
+                : string.Join(", ", markers.ConvertAll(aruco => aruco == null ? "?" : aruco.Id.ToString()));
+
+            if (ids == _lastLoggedMarkerIds) return;
+            _lastLoggedMarkerIds = ids;
+
+            string message = $"ArUco detectes : {ids}";
+            UserLog(message);
+            Debug.Log(message, this);
+        }
+
         /// <summary>
         /// Convertit la position d'un marqueur, exprimee en pixels de l'image
         /// envoyee au serveur, en position monde du Sandbox.
@@ -420,7 +483,7 @@ namespace Sandbox.Scripts.ServerClient
 
         private void UserLog(string message)
         {
-            Debug.Log(message);
+            //Debug.Log(message);
             AddLogMessage(message, "white");
         }
 
