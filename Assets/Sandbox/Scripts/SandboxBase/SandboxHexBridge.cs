@@ -60,10 +60,9 @@ public class SandboxHexBridge : MonoBehaviour
         ARSandbox.Sandbox.OnSandboxReady -= HandleSandboxReady;
     }
 
-    // Faux si le GameObject du HexGrid est désactivé (Awake/Start jamais
-    // exécutés) ou pas encore triangulé (activé en cours de partie, Start
-    // pas encore passé). Masquer la grille (toggle Sandbox Settings,
-    // HexGrid.Visible) ne coupe que son rendu : elle reste recalée ici.
+    // Faux si le HexGrid est masqué (toggle Sandbox Settings, y compris
+    // désactivé dès le lancement : Awake/Start jamais exécutés) ou pas
+    // encore triangulé (activé en cours de partie, Start pas encore passé).
     bool IsHexGridReady => hexGrid != null && hexGrid.isActiveAndEnabled && hexGrid.IsReady;
 
     void HandleSandboxReady()
@@ -79,8 +78,8 @@ public class SandboxHexBridge : MonoBehaviour
 
         // Filet de sécurité si ce composant était désactivé/absent quand
         // OnSandboxReady a été levé (ex: le Sandbox était déjà calibré
-        // avant l'activation de cet objet), ou si le HexGrid était désactivé
-        // au moment d'une recalibration.
+        // avant l'activation de cet objet), ou si le HexGrid était masqué
+        // (toggle Sandbox Settings) au moment d'une recalibration.
         if (autoFitOnReady && !hasFitCurrentCalibration) FitHexGridToSandbox();
 
         frameCounter++;

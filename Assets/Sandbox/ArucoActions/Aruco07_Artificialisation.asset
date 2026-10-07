@@ -9,12 +9,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5e7a6540cd534892b70dec089da28b52, type: 3}
+  m_Script: {fileID: 11500000, guid: 7ba1f3c82495b134ba46f8b36aebd551, type: 3}
   m_Name: Aruco07_Artificialisation
-  m_EditorClassIdentifier: Assembly-CSharp::ARSandbox.Aruco.Actions.HexTerrainArucoAction
+  m_EditorClassIdentifier: Assembly-CSharp::ARSandbox.Aruco.Actions.LogArucoAction
   markerId: 7
   objectName: Artificialisation
   family: 2
   scope: 1
   exclusiveInFamily: 0
-  terrainType: 5

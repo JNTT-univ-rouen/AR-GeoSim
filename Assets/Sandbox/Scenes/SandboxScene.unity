@@ -53269,7 +53269,6 @@ GameObject:
   - component: {fileID: 1205301050}
   - component: {fileID: 1205301049}
   - component: {fileID: 1205301051}
-  - component: {fileID: 1205301052}
   m_Layer: 0
   m_Name: ServerClient
   m_TagString: Untagged
@@ -53335,7 +53334,6 @@ MonoBehaviour:
   topographyLabelManager: {fileID: 1802749924}
   seasonMenu: {fileID: 1780317997}
   cloudManager: {fileID: 1205301051}
-  hexTileManager: {fileID: 1205301052}
 --- !u!114 &1205301050
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -53378,23 +53376,6 @@ MonoBehaviour:
   waterReserve: 120
   rainRadius: 8
   stormIntensityFactor: 2
-  logEvents: 1
---- !u!114 &1205301052
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1205301046}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9938b678c2f54e53af6bb2d165c128ab, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ARSandbox.Aruco.HexTiles.HexTileManager
-  hexGrid: {fileID: 369628857}
-  placementValidationDelay: 1
-  markerLostDelay: 1
-  showGridOnPaint: 1
   logEvents: 1
 --- !u!1 &1208790177
 GameObject:
