@@ -7,7 +7,15 @@ public class HexGrid : MonoBehaviour
 
     public HexCell cellPrefab;
 
+    // Masquer la grille ne desactive PAS son GameObject : les cellules
+    // doivent exister et rester calees sur le Sandbox (SandboxHexBridge) pour
+    // que les marqueurs ArUco puissent les modifier et que les nuages s'en
+    // servent comme zones, meme quand rien n'est affiche.
+    [Tooltip("Grille affichee au lancement. Decoche : la grille existe (cellules modifiables, zones des nuages) mais n'est pas dessinee tant qu'on ne l'affiche pas (Sandbox Settings, ou premiere tuile posee par un marqueur).")]
+    [SerializeField] private bool visibleOnStart = false;
+
     private HexMesh hexMesh;
+    private MeshRenderer hexRenderer;
 
     HexCell[] cells;
 
@@ -28,9 +36,24 @@ public class HexGrid : MonoBehaviour
     // facteur d'echelle pour recouvrir une zone cible (cf. SandboxHexBridge).
     public Bounds GetLocalBounds() => hexMesh.LocalBounds;
 
+    /// <summary>
+    /// Affichage de la grille (remplissage + contours). Ne touche qu'au rendu :
+    /// cellules, collider et recalage sur le Sandbox continuent de vivre.
+    /// </summary>
+    public bool Visible
+    {
+        get => hexRenderer != null && hexRenderer.enabled;
+        set
+        {
+            if (hexRenderer != null) hexRenderer.enabled = value;
+        }
+    }
+
     private void Awake()
     {
         hexMesh = GetComponentInChildren<HexMesh>();
+        hexRenderer = hexMesh.GetComponent<MeshRenderer>();
+        hexRenderer.enabled = visibleOnStart;
         GeneterateGrid();
     }
 
@@ -42,11 +65,19 @@ public class HexGrid : MonoBehaviour
 
     public HexCell GetCellAtPosition(Vector3 worldPosition)
     {
+        if (cells == null) return null;
+
         Vector3 position = transform.InverseTransformPoint(worldPosition);
         HexCoordinates coordinates = HexCoordinates.FromPosition(position);
-        int index = coordinates.X + coordinates.Z * width + coordinates.Z / 2;
-        if (index < 0 || index >= cells.Length) return null;
-        return cells[index];
+
+        // Retour en coordonnees "offset" (colonne, ligne) pour verifier chaque
+        // axe separement : un simple test sur l'index lineaire laisserait un
+        // point situe juste a gauche ou a droite de la grille retomber sur une
+        // cellule du bord oppose, une ligne plus haut ou plus bas.
+        int z = coordinates.Z;
+        int x = coordinates.X + z / 2;
+        if (z < 0 || z >= height || x < 0 || x >= width) return null;
+        return cells[x + z * width];
     }
 
     public void ToggleCellTerrainType(Vector3 worldPosition)
@@ -56,6 +87,21 @@ public class HexGrid : MonoBehaviour
 
         cell.ToggleTerrainType();
         hexMesh.Triangulate(cells);
+    }
+
+    /// <summary>
+    /// Donne un type de terrain a une cellule. Ne retriangule que si le type
+    /// change : un marqueur pose reste detecte a chaque image, il ne faut pas
+    /// reconstruire tout le mesh a chaque detection. Renvoie vrai si la
+    /// cellule a change.
+    /// </summary>
+    public bool SetCellTerrainType(HexCell cell, HexTerrainType terrainType)
+    {
+        if (cell == null || cell.terrainType == terrainType) return false;
+
+        cell.terrainType = terrainType;
+        if (IsReady) hexMesh.Triangulate(cells);
+        return true;
     }
 
     void CreateCell(int x, int z, int i)

@@ -31,8 +31,12 @@ namespace ARSandbox.Aruco
         [Tooltip("Gestionnaire des nuages : cree et fait vivre les nuages demandes par les marqueurs de precipitations.")]
         [SerializeField] private Clouds.CloudManager cloudManager;
 
+        [Tooltip("Gestionnaire des tuiles : change le terrain des cellules de l'HexGrid a la demande des marqueurs d'occupation du sol.")]
+        [SerializeField] private HexTiles.HexTileManager hexTileManager;
+
         public Sandbox Sandbox => sandbox;
         public Clouds.CloudManager CloudManager => cloudManager;
+        public HexTiles.HexTileManager HexTileManager => hexTileManager;
         public WaterSimulation.WaterSimulation WaterSimulation => waterSimulation;
         public TopographyLabelManager TopographyLabelManager => topographyLabelManager;
         public UI_DropdownSeasonMenu SeasonMenu => seasonMenu;
@@ -59,6 +63,16 @@ namespace ARSandbox.Aruco
                 Debug.LogWarning($"ArucoSceneContext : aucun CloudManager assigne, '{asker}' ne peut pas creer de nuage.", this);
             }
             return cloudManager;
+        }
+
+        /// <summary>Meme principe, pour les tuiles de l'HexGrid.</summary>
+        public HexTiles.HexTileManager RequireHexTileManager(Object asker)
+        {
+            if (hexTileManager == null)
+            {
+                Debug.LogWarning($"ArucoSceneContext : aucun HexTileManager assigne, '{asker}' ne peut pas changer de tuile.", this);
+            }
+            return hexTileManager;
         }
 
         /// <summary>Meme principe que RequireWaterSimulation, pour les labels d'altitude.</summary>

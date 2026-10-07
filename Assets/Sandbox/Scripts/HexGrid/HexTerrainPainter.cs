@@ -37,6 +37,9 @@ public class HexTerrainPainter : MonoBehaviour
     {
         if (hexGrid == null || handInput == null) return;
 
+        // Grille masquee : un clic modifierait une cellule invisible.
+        if (!hexGrid.Visible) return;
+
         List<HandInputGesture> gestures = handInput.GetCurrentGestures();
         HashSet<int> currentIDs = new HashSet<int>();
 

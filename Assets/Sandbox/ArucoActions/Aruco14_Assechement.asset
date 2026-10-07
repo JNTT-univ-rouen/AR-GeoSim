@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5e7a6540cd534892b70dec089da28b52, type: 3}
-  m_Name: Aruco08_Vegetalisation
+  m_Name: Aruco14_Assechement
   m_EditorClassIdentifier: Assembly-CSharp::ARSandbox.Aruco.Actions.HexTerrainArucoAction
-  markerId: 8
-  objectName: Vegetalisation
+  markerId: 14
+  objectName: Assechement
   family: 2
   scope: 1
   exclusiveInFamily: 0
-  terrainType: 1
+  terrainType: 3
