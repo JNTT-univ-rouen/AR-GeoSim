@@ -32,8 +32,11 @@ public class SandboxHexBridge : MonoBehaviour
     public ARSandbox.Sandbox sandbox;
     public HexGrid hexGrid;
 
-    [Tooltip("Nombre de frames entre deux lectures GPU->CPU (coûteuses)")]
+    [Tooltip("Nombre de frames entre deux lectures GPU->CPU (coûteuses). Sans effet tant que readDepthPerCell est décoché.")]
     public int updateEveryNFrames = 10;
+
+    [Tooltip("Lit la profondeur moyenne sous chaque hexagone et la stocke dans HexCell.DepthT. Désactivé : aucun code ne lit cette donnée aujourd'hui, et la lecture passe par SandboxCSHelper.Run_ExtractDepthData, dont le tampon GPU a un pas de 8 octets alors que le compute shader declare des entiers de 4 : GetData echoue a chaque appel. A reactiver le jour ou DepthT sert, en corrigeant d'abord ce pas.")]
+    public bool readDepthPerCell = false;
 
     [Header("Auto-alignement / auto-fit")]
     [Tooltip("Recale automatiquement position + échelle du HexGrid sur l'emprise du Sandbox (SandboxDescriptor.MeshStart -> MeshEnd) dès que celui-ci est prêt, et à chaque recalibration.")]
@@ -60,10 +63,14 @@ public class SandboxHexBridge : MonoBehaviour
         ARSandbox.Sandbox.OnSandboxReady -= HandleSandboxReady;
     }
 
-    // Faux si le HexGrid est masqué (toggle Sandbox Settings, y compris
-    // désactivé dès le lancement : Awake/Start jamais exécutés) ou pas
-    // encore triangulé (activé en cours de partie, Start pas encore passé).
-    bool IsHexGridReady => hexGrid != null && hexGrid.isActiveAndEnabled && hexGrid.IsReady;
+    // Faux tant que le HexGrid n'a pas construit son mesh (Start pas encore
+    // passé) : ses bounds seraient vides et le recalage donnerait une échelle
+    // infinie.
+    //
+    // L'objet peut en revanche être désactivé : il garde alors ses cellules, et
+    // le recalage reste nécessaire pour que les cartes ArUco et les nuages
+    // visent les bonnes zones, grille cachée ou non.
+    bool IsHexGridReady => hexGrid != null && hexGrid.IsReady;
 
     void HandleSandboxReady()
     {
@@ -81,6 +88,12 @@ public class SandboxHexBridge : MonoBehaviour
         // avant l'activation de cet objet), ou si le HexGrid était masqué
         // (toggle Sandbox Settings) au moment d'une recalibration.
         if (autoFitOnReady && !hasFitCurrentCalibration) FitHexGridToSandbox();
+
+        if (!readDepthPerCell) return;
+
+        // Grille cachée : la lecture de profondeur (coûteuse, GPU -> CPU) n'a
+        // pas d'utilité tant que rien n'est affiché.
+        if (!hexGrid.gameObject.activeInHierarchy) return;
 
         frameCounter++;
         if (frameCounter < updateEveryNFrames) return;

@@ -46,6 +46,9 @@ namespace ARSandbox.Aruco.EditorTools
             // Renseigne uniquement pour la famille Precipitations.
             public Clouds.SandboxCloud.CloudKind CloudKind;
 
+            // Renseigne uniquement pour la famille Occupation du sol.
+            public HexTerrainType TerrainType;
+
             // Renseigne uniquement pour la famille Lecture relief.
             public ReliefViewArucoAction.TerrainView TerrainView;
             public ReliefViewArucoAction.LabelSetting Labels;
@@ -87,10 +90,14 @@ namespace ARSandbox.Aruco.EditorTools
             Rain(5, "Pluie", Clouds.SandboxCloud.CloudKind.Pluie),
             Rain(6, "Averse orageuse", Clouds.SandboxCloud.CloudKind.Orage),
 
-            // Occupation du sol : actions locales, la ou l'objet est pose.
-            Simple(7, "Artificialisation", ArucoActionFamily.OccupationDuSol, ArucoActionScope.Locale),
-            Simple(8, "Vegetalisation", ArucoActionFamily.OccupationDuSol, ArucoActionScope.Locale),
-            Simple(9, "Suppression de haies", ArucoActionFamily.OccupationDuSol, ArucoActionScope.Locale),
+            // Occupation du sol : peint la cellule de l'HexGrid qui porte la
+            // carte. Effet local et persistant.
+            Tile(7, "Artificialisation", HexTerrainType.Tarmac),
+            Tile(8, "Vegetalisation", HexTerrainType.Grass),
+            // 9 : sol asseche. Stone plutot que Sand : avec la saturation
+            // reglee dans la scene, Sand ressort jaune pale alors que Stone
+            // donne l'orange attendu. A changer dans l'inspecteur si besoin.
+            Tile(9, "Assechement", HexTerrainType.Stone),
             Simple(10, "Ajout de haies", ArucoActionFamily.OccupationDuSol, ArucoActionScope.Locale),
 
             // Qualite du sol : implementee, exclusive (un seul sol a la fois).
@@ -114,6 +121,22 @@ namespace ARSandbox.Aruco.EditorTools
                 Family = family,
                 Scope = scope,
                 ActionType = typeof(LogArucoAction)
+            };
+        }
+
+        static MarkerDefinition Tile(int id, string objectName, HexTerrainType terrainType)
+        {
+            return new MarkerDefinition
+            {
+                Id = id,
+                ObjectName = objectName,
+                Family = ArucoActionFamily.OccupationDuSol,
+                Scope = ArucoActionScope.Locale,
+                // Pas d'exclusivite : plusieurs tuiles coexistent, chacune sur
+                // sa cellule.
+                Exclusive = false,
+                ActionType = typeof(HexTerrainArucoAction),
+                TerrainType = terrainType
             };
         }
 
@@ -277,6 +300,10 @@ namespace ARSandbox.Aruco.EditorTools
             else if (marker.ActionType == typeof(CompositeArucoAction))
             {
                 ApplyCompositeSettings(serialized, action, marker);
+            }
+            else if (marker.ActionType == typeof(HexTerrainArucoAction))
+            {
+                serialized.FindProperty("terrainType").enumValueIndex = (int)marker.TerrainType;
             }
             else if (marker.ActionType == typeof(PrecipitationArucoAction))
             {

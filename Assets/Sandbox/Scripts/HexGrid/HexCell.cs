@@ -37,6 +37,25 @@ public class HexCell : MonoBehaviour
 
     public Vector3 Position => transform.localPosition;
 
+    // Vrai une fois que la cellule a recu un terrain, par une carte ArUco ou
+    // un clic. Les cellules jamais peintes ne sont pas dessinees du tout :
+    // sinon, poser une seule tuile ferait apparaitre tout le bac dans le
+    // terrain par defaut, et l'effet local serait illisible.
+    public bool Painted { get; private set; }
+
+    /// <summary>Applique un terrain et marque la cellule comme peinte.</summary>
+    public void SetTerrainType(HexTerrainType type)
+    {
+        terrainType = type;
+        Painted = true;
+    }
+
+    /// <summary>Rend la cellule a son etat non peint : elle cesse d'etre dessinee.</summary>
+    public void ClearTerrain()
+    {
+        Painted = false;
+    }
+
     public int Elevation
     {
         get => elevation;

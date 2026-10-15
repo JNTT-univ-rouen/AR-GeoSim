@@ -28,6 +28,9 @@ public class HexMesh : MonoBehaviour {
 	[Tooltip("Saturation du remplissage (1 = couleur d'origine des textures, >1 = plus vif). Modifiable en direct, y compris en Play.")]
 	public float colorSaturation = 1.5f;
 
+	[Tooltip("Ne dessine que les cellules ayant recu un terrain (carte ArUco ou clic). Decoche : toute la grille est dessinee, dans son terrain par defaut.")]
+	public bool drawOnlyPaintedCells = true;
+
 	MeshRenderer meshRenderer;
 	MaterialPropertyBlock propertyBlock;
 	static readonly int OpacityID = Shader.PropertyToID("_Opacity");
@@ -122,6 +125,11 @@ public class HexMesh : MonoBehaviour {
 		outlineIndices.Clear();
 
 		for (int i = 0; i < cells.Length; i++) {
+			// Par defaut, seules les cellules peintes sont dessinees : sinon,
+			// poser une seule tuile ferait apparaitre tout le bac dans le
+			// terrain par defaut. Decocher pour revoir la grille entiere.
+			if (drawOnlyPaintedCells && !cells[i].Painted) continue;
+
 			Triangulate(cells[i]);
 			AddCellOutline(cells[i]);
 		}
@@ -226,7 +234,9 @@ public class HexMesh : MonoBehaviour {
 		HexDirection direction, HexCell cell, Vector3 v1, Vector3 v2
 	) {
 		HexCell neighbor = cell.GetNeighbor(direction);
-		if (neighbor == null) {
+		// Pont vers une cellule non peinte : il melangerait la couleur avec
+		// un terrain qui n'est pas affiche, et deborderait de la zone posee.
+		if (neighbor == null || !neighbor.Painted) {
 			return;
 		}
 		Vector3 bridge = HexMetrics.GetBridge(direction);
@@ -240,7 +250,7 @@ public class HexMesh : MonoBehaviour {
 		AddQuadTerrainTypes(cell.terrainType, neighbor.terrainType);
 
 		HexCell nextNeighbor = cell.GetNeighbor(direction.Next());
-		if (direction <= HexDirection.E && nextNeighbor != null) {
+		if (direction <= HexDirection.E && nextNeighbor != null && nextNeighbor.Painted) {
 			Vector3 v5 = v2 + HexMetrics.GetBridge(direction.Next());
 			v5.y = nextNeighbor.Position.y;
 			AddTriangle(v2, v4, v5);
