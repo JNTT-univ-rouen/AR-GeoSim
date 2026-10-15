@@ -38,9 +38,12 @@ namespace ARSandbox
         public Image UI_GeneralSettingsBtn;
         public Image UI_LabelSettingsBtn;
 
-        // General Settings 
+        // General Settings
         public HexGrid HexGrid;
         public Toggle UI_HexGridToggle;
+
+        [Tooltip("Menu des saisons : c'est lui qui fait autorite sur la vue du terrain. L'affichage de l'HexGrid passe par lui pour basculer en noir et blanc, et revenir ensuite a la vue standard.")]
+        public UI_DropdownSeasonMenu SeasonMenu;
         public Slider UI_ResolutionSlider;
         public Slider UI_ContourSlider;
         public Slider UI_MinorContourSlider;
@@ -152,7 +155,8 @@ namespace ARSandbox
             if (currentMenuOpen == MenuOpen.General) UI_OpenGeneralSettings();
             else if (currentMenuOpen == MenuOpen.ContourLabels) UI_OpenLabelSettings();
 
-            UI_HexGridToggle.SetIsOnWithoutNotify(HexGrid.gameObject.activeSelf);
+            UI_HexGridToggle.SetIsOnWithoutNotify(HexGrid.Visible);
+            UI_HexGridToggle.interactable = HexGridAvailable;
             UI_ResolutionSlider.value = (int)Sandbox.SandboxResolution;
             UI_ContourSlider.value = Sandbox.MajorContourSpacing * 2;
             UI_MinorContourSlider.value = Sandbox.MinorContours;
@@ -204,9 +208,59 @@ namespace ARSandbox
             }
         }
 
+        // Index des vues du menu des saisons (cf. UI_DropdownSeasonMenu).
+        private const int StandardSeason = 0;
+        private const int BlackAndWhiteSeason = 3;
+
+        /// <summary>
+        /// L'HexGrid ne s'affiche que pendant la simulation d'eau : ailleurs, le
+        /// Sandbox n'a pas de raison de montrer un decoupage en cellules.
+        /// </summary>
+        private bool HexGridAvailable => UI_MenuManager != null && UI_MenuManager.WaterSimulationOpen;
+
         public void UI_ToggleHexGrid(bool toggleVal)
         {
-            HexGrid.gameObject.SetActive(toggleVal);
+            if (toggleVal && !HexGridAvailable)
+            {
+                // Le bouton est deja grise hors simulation d'eau : ce garde-fou
+                // ne sert que si l'etat change dans le dos du menu.
+                UI_HexGridToggle.SetIsOnWithoutNotify(false);
+                return;
+            }
+
+            HexGrid.Visible = toggleVal;
+            ApplyHexGridView(toggleVal);
+        }
+
+        /// <summary>
+        /// Eteint la grille sans toucher a la vue du terrain. Appele en quittant
+        /// l'ecran de la simulation d'eau : celle-ci remet elle-meme le shader
+        /// par defaut en s'arretant, et forcer une vue ici entrerait en conflit
+        /// avec ce retour.
+        /// </summary>
+        public void HideHexGrid()
+        {
+            if (HexGrid == null || !HexGrid.Visible) return;
+
+            HexGrid.Visible = false;
+            if (UI_HexGridToggle != null) UI_HexGridToggle.SetIsOnWithoutNotify(false);
+        }
+
+        /// <summary>
+        /// Noir et blanc tant que la grille est affichee : les hexagones se
+        /// confondent avec le relief colore. Vue standard des qu'on la retire.
+        ///
+        /// Le changement passe par le menu des saisons plutot que par
+        /// Sandbox.SetSandboxShader directement, pour que la saison courante et
+        /// la photo de terrain restent coherentes avec la vue affichee.
+        /// </summary>
+        private void ApplyHexGridView(bool gridVisible)
+        {
+            if (SeasonMenu == null) return;
+
+            int season = gridVisible ? BlackAndWhiteSeason : StandardSeason;
+            SeasonMenu.ChangeSeasonDropdown(season);
+            SeasonMenu.ChangeSeasonImage(season);
         }
 
         public void UI_ToggleContourLabels(bool toggleVal)

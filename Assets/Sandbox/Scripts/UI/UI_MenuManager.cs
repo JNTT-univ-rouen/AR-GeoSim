@@ -59,6 +59,17 @@ namespace ARSandbox
         public bool SandboxSettingsOpen { get; private set; }
         public bool SharingMenuOpen { get; private set; }
 
+        /// <summary>
+        /// Vrai quand l'ecran de la simulation d'eau est celui affiche. Lu par
+        /// UI_SandboxSettings, dont certains reglages n'ont de sens que la.
+        ///
+        /// C'est le menu affiche qui est consulte, et non le mode de
+        /// ModeSelector : les boutons appellent Open...() et Enable...() dans
+        /// un ordre qui varie d'un bouton a l'autre, si bien que le mode n'est
+        /// pas encore a jour quand l'ecran change.
+        /// </summary>
+        public bool WaterSimulationOpen => activeMenu == UI_WaterSimulation;
+
         private GameObject activeMenu;
         private bool initialCalibrationComplete;
 
@@ -101,6 +112,11 @@ namespace ARSandbox
             activeMenu = newActiveMenu;
             if (SandboxSettingsOpen) CloseSandboxSettings();
             if (SharingMenuOpen) CloseSharingMenu();
+
+            // L'HexGrid n'accompagne que la simulation d'eau : quitter cet
+            // ecran l'eteint, faute de quoi elle resterait affichee sur un
+            // mode qui ne sait pas quoi en faire.
+            if (newActiveMenu != UI_WaterSimulation) UI_SandboxSettings.HideHexGrid();
 
             UI_CalibrationExitButton.GetComponentInChildren<Button>().onClick.RemoveAllListeners();
             if (newActiveMenu == UI_MainMenu)
