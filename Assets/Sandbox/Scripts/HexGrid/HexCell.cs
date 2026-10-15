@@ -6,6 +6,9 @@ using UnityEngine;
 // Tarmac (goudron) : aucune texture "goudron" fournie par le tutoriel,
 // donc generee proceduralement (bruit fractal, gris fonce, meme faible
 // contraste que les 5 autres) dans le meme dossier, textures_clc/tarmac.png.
+//
+// Seuls Grass, Stone et Tarmac sont en service (cf. HexCell.TypesInUse) :
+// l'enum garde les trois autres pour ne pas decaler les index de tranche.
 public enum HexTerrainType
 {
     Sand,
@@ -70,10 +73,28 @@ public class HexCell : MonoBehaviour
         }
     }
 
+    // Terrains reellement utilises : ceux que les trois cartes ArUco savent
+    // poser (7 Artificialisation -> Tarmac, 8 Vegetalisation -> Grass,
+    // 9 Assechement -> Stone), et ceux de la carte de depart.
+    //
+    // Sand, Mud et Snow restent dans l'enum sans etre proposes : l'ordre de
+    // celui-ci est l'index de tranche dans le Texture2DArray, donc les
+    // retirer decalerait les textures des trois autres. Pour en remettre un
+    // en service, il suffit de l'ajouter ici.
+    static readonly HexTerrainType[] TypesInUse =
+    {
+        HexTerrainType.Tarmac,
+        HexTerrainType.Grass,
+        HexTerrainType.Stone,
+    };
+
     public void ToggleTerrainType()
     {
-        int next = ((int)terrainType + 1) % System.Enum.GetValues(typeof(HexTerrainType)).Length;
-        terrainType = (HexTerrainType)next;
+        // Une cellule posee sur un terrain hors service repart sur le premier
+        // de la liste : IndexOf renvoie -1, donc l'index suivant est 0.
+        int current = System.Array.IndexOf(TypesInUse, terrainType);
+        int next = (current + 1) % TypesInUse.Length;
+        SetTerrainType(TypesInUse[next]);
     }
 
     public HexCell GetNeighbor(HexDirection direction)
