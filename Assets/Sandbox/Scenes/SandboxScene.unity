@@ -31675,7 +31675,7 @@ MonoBehaviour:
   m_FillRect: {fileID: 656368502}
   m_HandleRect: {fileID: 960462879}
   m_Direction: 0
-  m_MinValue: 0.1
+  m_MinValue: 0
   m_MaxValue: 1
   m_WholeNumbers: 0
   m_Value: 0.5
@@ -53269,6 +53269,7 @@ GameObject:
   - component: {fileID: 1205301050}
   - component: {fileID: 1205301049}
   - component: {fileID: 1205301051}
+  - component: {fileID: 1205301052}
   m_Layer: 0
   m_Name: ServerClient
   m_TagString: Untagged
@@ -53334,6 +53335,7 @@ MonoBehaviour:
   topographyLabelManager: {fileID: 1802749924}
   seasonMenu: {fileID: 1780317997}
   cloudManager: {fileID: 1205301051}
+  hexTileManager: {fileID: 1205301052}
 --- !u!114 &1205301050
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -53369,13 +53371,34 @@ MonoBehaviour:
   stormSprite: {fileID: 21300000, guid: 5439c1632e0a6704ea57c25ed540ab2a, type: 3}
   cloudShader: {fileID: 4800000, guid: 1afc5615c41c93c479f384e5bcc127c3, type: 3}
   cloudHeight: 40
-  placementValidationDelay: 1.5
-  activationDelay: 3
+  placementValidationDelay: 1
+  activationDelay: 2
+  markerLostDelay: 2.5
+  zoneChangeConfirmations: 2
+  markerPull: 0.6
+  maxOffsetRatio: 0.5
   maxClouds: 3
   dropsPerSecond: 6
-  waterReserve: 120
+  waterReserve: 60
   rainRadius: 8
   stormIntensityFactor: 2
+  logEvents: 1
+--- !u!114 &1205301052
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1205301046}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 39473c584dd276346865f814e682e813, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  hexGrid: {fileID: 369628857}
+  placementValidationDelay: 1
+  markerLostDelay: 1
+  showGridOnPaint: 1
   logEvents: 1
 --- !u!1 &1208790177
 GameObject:
@@ -60492,6 +60515,7 @@ MonoBehaviour:
   UI_LabelSettingsBtn: {fileID: 111043299}
   HexGrid: {fileID: 369628857}
   UI_HexGridToggle: {fileID: 1378247746}
+  SeasonMenu: {fileID: 1780317997}
   UI_ResolutionSlider: {fileID: 1245304778}
   UI_ContourSlider: {fileID: 787146142}
   UI_MinorContourSlider: {fileID: 1549034889}
@@ -63956,6 +63980,7 @@ MonoBehaviour:
   SandboxDataCamera: {fileID: 558044088}
   TopographyTextHandler: {fileID: 1802749924}
   FreezeFrame: {fileID: 644786353}
+  logShaderChanges: 1
   NoiseTolerance: 7.5
   LowPassHoldTime: 20
   rawInfraredTex: {fileID: 0}
@@ -63981,6 +64006,7 @@ MonoBehaviour:
   sandbox: {fileID: 1466343887}
   hexGrid: {fileID: 369628857}
   updateEveryNFrames: 10
+  readDepthPerCell: 0
   autoFitOnReady: 1
   depthBaselineT: 0.169
   coverageMargin: 1.251
