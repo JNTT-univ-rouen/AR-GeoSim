@@ -49,8 +49,21 @@ namespace ARSandbox.Aruco.Clouds
         [Tooltip("Delai entre le retrait de la carte et l'activation du nuage. S'ajoute au delai de tolerance du routeur (ArucoMarkerRouter.lostAfterSeconds, 1 s), qui court avant.")]
         [SerializeField] private float activationDelay = 1.5f;
 
-        [Tooltip("Duree sans revoir une carte avant de la considerer retiree. Utile quand plusieurs cartes partagent un identifiant : le routeur ne signale la disparition que lorsque la derniere est partie.")]
-        [SerializeField] private float markerLostDelay = 1f;
+        [Tooltip("Duree sans revoir une carte avant de la considerer retiree. Doit rester NETTEMENT plus grand que l'intervalle entre deux detections du serveur : c'est la tolerance aux trous de detection. Trop court, une carte posee bien a plat voit son decompte de stabilite repartir de zero a chaque image manquee, et ne declenche jamais de nuage.")]
+        [SerializeField] private float markerLostDelay = 2.5f;
+
+        [Tooltip("Nombre de detections consecutives dans une AUTRE cellule avant de considerer que la carte a vraiment ete deplacee. 1 = aucune tolerance. Une carte posee a cheval sur une bordure saute d'une cellule a l'autre au gre du bruit de detection : sans cette confirmation, son decompte repart a zero sans arret.")]
+        [Range(1, 5)]
+        [SerializeField] private int zoneChangeConfirmations = 2;
+
+        [Header("Position du nuage dans sa cellule")]
+        [Tooltip("0 = le nuage se pose au centre de la cellule, 1 = exactement sur la carte. Entre les deux, il suit la carte sans quitter sa cellule.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float markerPull = 0.6f;
+
+        [Tooltip("Ecart maximal au centre de la cellule, en fraction du rayon interieur de l'hexagone. Garantit qu'un nuage reste visuellement dans SA cellule, meme si la carte est posee tout au bord.")]
+        [Range(0f, 1f)]
+        [SerializeField] private float maxOffsetRatio = 0.5f;
 
         [Tooltip("Nombre maximal de nuages simultanes.")]
         [SerializeField] private int maxClouds = 3;
@@ -82,8 +95,16 @@ namespace ARSandbox.Aruco.Clouds
             public int MarkerId;
             public HexCell Cell;
             public Vector3 Position;
-            public float StableSince;           // depuis quand dans cette zone
+
+            // Temps CUMULE passe dans la zone courante, et non l'instant
+            // d'entree : une detection manquee ne doit pas annuler ce qui a
+            // deja ete acquis. C'est la difference entre "vue sans
+            // interruption pendant 1 s", que le serveur ne garantit pas, et
+            // "restee la 1 s", qui est ce qu'on veut verifier.
+            public float StableTime;
+
             public float LastSeenTime;          // derniere image ou elle a ete vue
+            public int ForeignSightings;        // detections d'affilee dans une autre cellule
             public ActiveCloud ReservedCloud;   // non nul une fois la pose validee
         }
 
@@ -123,37 +144,114 @@ namespace ARSandbox.Aruco.Clouds
             {
                 // Aucune carte connue a cet endroit : c'en est une nouvelle, meme
                 // si une autre carte porte deja le meme identifiant ailleurs.
-                placements.Add(new PendingPlacement
+                placement = new PendingPlacement
                 {
                     MarkerId = markerId,
                     Cell = cell,
                     Position = worldPosition,
-                    StableSince = Time.time,
                     LastSeenTime = Time.time
-                });
+                };
+                placements.Add(placement);
+
+                // Si un nuage attendait justement de s'activer ici, c'est que
+                // cette carte n'etait pas partie : juste perdue de vue le temps
+                // de quelques images. Elle reprend sa reservation sans refaire
+                // le decompte de stabilite, faute de quoi un simple trou de
+                // detection declenche la pluie alors que la carte est encore
+                // posee sur le sable.
+                AdoptReservedCloud(placement, cell, worldPosition, kind);
+
                 LogCounts();
                 return;
             }
 
+            // Le temps credite est celui reellement ecoule depuis la derniere
+            // detection, borne par la tolerance aux trous : la carte compte
+            // comme presente pendant le trou, pas au-dela.
+            float elapsed = Mathf.Min(Time.time - placement.LastSeenTime, markerLostDelay);
             placement.LastSeenTime = Time.time;
 
-            // La carte a change de zone : le decompte repart, et une eventuelle
-            // reservation faite au mauvais endroit est annulee.
             if (!SameZone(placement.Cell, placement.Position, cell, worldPosition))
             {
+                placement.ForeignSightings++;
+
+                // Pas encore assez de detections pour y croire : c'est
+                // probablement le bruit d'une carte posee sur une bordure. On
+                // garde la zone, et le decompte continue.
+                if (placement.ForeignSightings < zoneChangeConfirmations)
+                {
+                    placement.StableTime += elapsed;
+                    TryReserve(placement, kind);
+                    return;
+                }
+
+                // Deplacement confirme : le decompte repart, et une eventuelle
+                // reservation faite au mauvais endroit est annulee.
                 CancelReservation(placement);
                 placement.Cell = cell;
                 placement.Position = worldPosition;
-                placement.StableSince = Time.time;
+                placement.StableTime = 0f;
+                placement.ForeignSightings = 0;
                 return;
             }
 
+            placement.ForeignSightings = 0;
+            placement.StableTime += elapsed;
             placement.Position = worldPosition;
 
-            if (placement.ReservedCloud != null) return;
-            if (Time.time - placement.StableSince < placementValidationDelay) return;
+            TryReserve(placement, kind);
+        }
 
-            placement.ReservedCloud = Reserve(cell, worldPosition, kind);
+        /// <summary>
+        /// Reserve la zone si la carte y est restee assez longtemps. Quand la
+        /// reservation existe deja, la position du nuage suit la carte : c'est
+        /// la ou elle se trouvait en partant qui compte, pas la ou elle a ete
+        /// posee la premiere fois.
+        /// </summary>
+        private void TryReserve(PendingPlacement placement, SandboxCloud.CloudKind kind)
+        {
+            if (placement.ReservedCloud != null)
+            {
+                MoveCloudWithMarker(placement);
+                return;
+            }
+
+            if (placement.StableTime < placementValidationDelay) return;
+
+            placement.ReservedCloud = Reserve(placement.Cell, placement.Position, kind);
+        }
+
+        /// <summary>
+        /// Rattache une carte reapparue au nuage deja reserve sur sa zone, tant
+        /// que celui-ci n'a pas commence a pleuvoir. Le decompte de stabilite
+        /// est considere comme acquis : la carte avait deja valide sa pose.
+        /// </summary>
+        private void AdoptReservedCloud(PendingPlacement placement, HexCell cell,
+                                        Vector3 worldPosition, SandboxCloud.CloudKind kind)
+        {
+            ActiveCloud cloud = FindCloud(cell, worldPosition);
+            if (cloud == null || cloud.Active || cloud.MarkerStillPresent) return;
+
+            cloud.MarkerStillPresent = true;
+            cloud.Kind = kind;
+            placement.ReservedCloud = cloud;
+            placement.StableTime = placementValidationDelay;
+
+            MoveCloudWithMarker(placement);
+
+            if (logEvents) Debug.Log("CloudManager : carte revue, activation du nuage suspendue.", this);
+        }
+
+        /// <summary>
+        /// Recale un nuage encore en attente sur la position courante de sa
+        /// carte, sans quitter la cellule reservee.
+        /// </summary>
+        private void MoveCloudWithMarker(PendingPlacement placement)
+        {
+            ActiveCloud cloud = placement.ReservedCloud;
+            if (cloud == null || cloud.Active) return;
+
+            cloud.Position = CloudPositionFor(cloud.Cell, placement.Position);
         }
 
         /// <summary>
@@ -214,7 +312,19 @@ namespace ARSandbox.Aruco.Clouds
         {
             for (int i = placements.Count - 1; i >= 0; i--)
             {
-                if (placements[i].MarkerId == markerId) ReleasePlacement(placements[i], i);
+                if (placements[i].MarkerId != markerId) continue;
+
+                // Une carte dont la pose n'est PAS encore validee n'est pas
+                // liberee ici : le routeur signale seulement qu'aucune carte de
+                // cet identifiant n'est visible a cet instant, ce qui arrive
+                // aussi quand la detection decroche. La laisser expirer sur son
+                // propre delai (markerLostDelay) lui laisse le temps de
+                // reapparaitre et de finir son decompte. Si elle a vraiment
+                // quitte le bac, elle expirera une seconde plus tard et il ne
+                // se passera rien - aucun effet de bord.
+                if (placements[i].ReservedCloud == null) continue;
+
+                ReleasePlacement(placements[i], i);
             }
             LogCounts();
         }
@@ -312,6 +422,7 @@ namespace ARSandbox.Aruco.Clouds
                 // reservation en cours plutot que d'en creer une seconde.
                 existing.MarkerStillPresent = true;
                 existing.Kind = kind;
+                existing.Position = CloudPositionFor(existing.Cell, worldPosition);
                 return existing;
             }
 
@@ -462,16 +573,48 @@ namespace ARSandbox.Aruco.Clouds
         }
 
         /// <summary>
-        /// Centre de la zone : celui de la cellule quand il y en a une, sinon la
-        /// position de la carte. La hauteur est fixe, le sprite passant de toute
-        /// facon devant le relief.
+        /// Ou le nuage se pose, et donc ou l'eau tombe : un entre-deux entre le
+        /// centre de la cellule et la position reelle de la carte.
+        ///
+        /// Tout centrer sur la cellule donnait une pluie qui tombe toujours au
+        /// meme endroit, sans rapport visible avec la carte posee. Suivre
+        /// exactement la carte, a l'inverse, ferait deborder le nuage sur la
+        /// cellule voisine et casserait la regle "un nuage par cellule".
+        /// `markerPull` dose le suivi, `maxOffsetRatio` garantit qu'on reste
+        /// dans l'hexagone.
+        ///
+        /// La hauteur est fixe, le sprite passant de toute facon devant le
+        /// relief.
         /// </summary>
         private Vector3 CloudPositionFor(HexCell cell, Vector3 worldPosition)
         {
-            Vector3 position = cell != null && hexGrid != null
-                ? hexGrid.transform.TransformPoint(cell.Position)
-                : worldPosition;
+            if (cell == null || hexGrid == null)
+            {
+                // Hors grille : il n'y a pas de cellule a respecter.
+                Vector3 loose = worldPosition;
+                loose.z = cloudHeight;
+                return loose;
+            }
 
+            Vector3 centre = hexGrid.transform.TransformPoint(cell.Position);
+            Vector2 offset = new Vector2(worldPosition.x - centre.x, worldPosition.y - centre.y) * markerPull;
+
+            // L'echelle de la grille est non uniforme (cf. SandboxHexBridge,
+            // qui etire la grille sur l'emprise du bac) : le rayon utile n'est
+            // pas le meme sur les deux axes. On ramene l'ecart dans un disque
+            // unite pour le limiter, puis on le remet a l'echelle. Le rayon
+            // INTERIEUR est pris sur les deux axes : c'est le plus grand cercle
+            // entierement contenu dans l'hexagone.
+            Vector3 gridScale = hexGrid.transform.localScale;
+            float radiusX = Mathf.Max(HexMetrics.innerRadius * Mathf.Abs(gridScale.x) * maxOffsetRatio, 0.0001f);
+            float radiusY = Mathf.Max(HexMetrics.innerRadius * Mathf.Abs(gridScale.z) * maxOffsetRatio, 0.0001f);
+
+            Vector2 normalised = new Vector2(offset.x / radiusX, offset.y / radiusY);
+            if (normalised.sqrMagnitude > 1f) normalised.Normalize();
+
+            Vector3 position = centre;
+            position.x += normalised.x * radiusX;
+            position.y += normalised.y * radiusY;
             position.z = cloudHeight;
             return position;
         }
