@@ -10162,6 +10162,8 @@ MonoBehaviour:
     type: 3}
   WaterColorTexture: {fileID: 2800000, guid: ec47c2e7b7e6d1f488166050dfd0040d, type: 3}
   dropdownMenu: {fileID: 1780317997}
+  hexGrid: {fileID: 369628857}
+  terrainAbsorption: {fileID: 1466343890}
   WaterAbsorbtionToggle: {fileID: 290844014}
   PrecipitationDropsPerGesture: 1
   PrecipitationSpawnRadius: 3
@@ -63861,6 +63863,7 @@ GameObject:
   - component: {fileID: 1466343883}
   - component: {fileID: 1466343887}
   - component: {fileID: 1466343888}
+  - component: {fileID: 1466343890}
   m_Layer: 8
   m_Name: Sandbox
   m_TagString: Untagged
@@ -64010,6 +64013,26 @@ MonoBehaviour:
   autoFitOnReady: 1
   depthBaselineT: 0.169
   coverageMargin: 1.251
+--- !u!114 &1466343890
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1466343882}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c1d4e9a63b84f2ab5e07d1c84a93f55, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HexTerrainAbsorption
+  terrains:
+  - terrain: 1
+    dropsPerSecond: 10
+  - terrain: 3
+    dropsPerSecond: 1
+  - terrain: 5
+    dropsPerSecond: 0
+  defaultDropsPerSecond: 10
 --- !u!1 &1468535208
 GameObject:
   m_ObjectHideFlags: 0

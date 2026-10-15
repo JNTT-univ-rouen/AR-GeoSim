@@ -45,6 +45,13 @@ namespace ARSandbox.WaterSimulation
         public Texture2D WaterColorTexture;
         public UI_DropdownSeasonMenu dropdownMenu;
 
+        [Header("Infiltration par cellule")]
+        [Tooltip("Grille servant a savoir sur quel terrain chaque goutte est posee. Peut rester masquee : les cellules existent quand meme.")]
+        public HexGrid hexGrid;
+
+        [Tooltip("Debits d'infiltration par terrain. Laisser vide pour revenir a l'ancien puits global, qui ignore ou tombe l'eau.")]
+        public HexTerrainAbsorption terrainAbsorption;
+
         private SandboxDescriptor sandboxDescriptor;
         private List<WaterDroplet> waterDroplets;
         private RenderTexture metaballRT;
@@ -136,6 +143,37 @@ namespace ARSandbox.WaterSimulation
             }
         }
 
+        const float AbsorptionStep = 1 / 60.0f;
+
+        // Fraction de goutte a laquelle une cellule a droit mais qu'elle n'a
+        // pas encore consommee. A 1 goutte/s, un pas de 1/60 s ne donne droit
+        // qu'a 1/60 de goutte : sans ce report, on n'absorberait jamais rien.
+        private readonly Dictionary<HexCell, float> absorptionCredit = new Dictionary<HexCell, float>();
+
+        // Nombre de gouttes posees sur chaque cellule au pas courant. Seules
+        // les cellules qui portent de l'eau sont creditees : sinon une cellule
+        // restee seche accumulerait un credit et avalerait d'un coup la
+        // premiere averse qui lui tombe dessus.
+        private readonly Dictionary<HexCell, int> dropletsPerCell = new Dictionary<HexCell, int>();
+
+        // Cellule de chaque goutte, dans l'ordre de waterDroplets, pour ne pas
+        // refaire la recherche au moment de detruire.
+        private readonly List<HexCell> dropletCells = new List<HexCell>();
+
+        // Credit de l'eau tombee hors de la grille : elle n'a pas de cellule,
+        // mais doit tout de meme s'infiltrer.
+        private float outsideGridCredit;
+
+        /// <summary>
+        /// Facteur global applique aux debits du terrain : 0 quand le curseur
+        /// est au minimum (le sol ne boit rien), 1 quand il est au maximum (les
+        /// debits du tableau tels quels).
+        /// </summary>
+        public float AbsorptionMultiplier =>
+            WaterAbsorptionDisabled || WaterAbsorptionSpeed <= 0f
+                ? 0f
+                : Mathf.Clamp01(1f / WaterAbsorptionSpeed);
+
         IEnumerator ReduceWater()
         {
             while (waterDroplets.Count > 0 & _soilAbsorptionActive)
@@ -146,10 +184,19 @@ namespace ARSandbox.WaterSimulation
                 // repartir, alors que l'utilisateur n'a touche qu'au curseur.
                 if (WaterAbsorptionDisabled)
                 {
-                    yield return new WaitForSeconds(1 / 60.0f);
+                    yield return new WaitForSeconds(AbsorptionStep);
                     continue;
                 }
 
+                if (terrainAbsorption != null)
+                {
+                    AbsorbByTerrain(AbsorptionStep);
+                    yield return new WaitForSeconds(AbsorptionStep);
+                    continue;
+                }
+
+                // Sans tableau de terrains, ancien comportement : un puits
+                // global, qui ignore ou l'eau est tombee.
                 Destroy(waterDroplets[waterDroplets.Count - 1]);
                 waterDroplets.RemoveAt(waterDroplets.Count - 1);
 
@@ -157,6 +204,80 @@ namespace ARSandbox.WaterSimulation
             }
 
             this.WaterAbsorbtionToggle.isOn = false;
+        }
+
+        /// <summary>
+        /// Un pas d'infiltration : chaque cellule avale selon le debit de son
+        /// terrain, et seulement les gouttes posees sur elle. Une cellule de
+        /// goudron a un debit nul, son eau reste donc en surface et s'accumule
+        /// - c'est tout l'interet de la manoeuvre.
+        /// </summary>
+        private void AbsorbByTerrain(float deltaTime)
+        {
+            float multiplier = AbsorptionMultiplier;
+            if (multiplier <= 0f) return;
+
+            bool gridUsable = hexGrid != null && hexGrid.IsReady;
+
+            // Premiere passe : ou est chaque goutte, et combien par cellule.
+            dropletCells.Clear();
+            dropletsPerCell.Clear();
+            int dropletsOutsideGrid = 0;
+
+            for (int i = 0; i < waterDroplets.Count; i++)
+            {
+                WaterDroplet droplet = waterDroplets[i];
+                HexCell cell = droplet != null && gridUsable
+                    ? hexGrid.GetCellAtPosition(droplet.transform.position)
+                    : null;
+
+                dropletCells.Add(cell);
+
+                if (cell == null)
+                {
+                    dropletsOutsideGrid++;
+                    continue;
+                }
+
+                dropletsPerCell.TryGetValue(cell, out int count);
+                dropletsPerCell[cell] = count + 1;
+            }
+
+            // Deuxieme passe : crediter les cellules qui portent de l'eau.
+            foreach (KeyValuePair<HexCell, int> entry in dropletsPerCell)
+            {
+                float rate = terrainAbsorption.DropsPerSecondFor(entry.Key) * multiplier;
+                absorptionCredit.TryGetValue(entry.Key, out float credit);
+                absorptionCredit[entry.Key] = credit + rate * deltaTime;
+            }
+
+            if (dropletsOutsideGrid > 0)
+            {
+                outsideGridCredit += terrainAbsorption.DropsPerSecondFor(null)
+                                     * multiplier * deltaTime;
+            }
+
+            // Troisieme passe : detruire. A l'envers, pour qu'une suppression
+            // n'invalide pas les indices qui restent a traiter.
+            for (int i = waterDroplets.Count - 1; i >= 0; i--)
+            {
+                HexCell cell = dropletCells[i];
+
+                if (cell == null)
+                {
+                    if (outsideGridCredit < 1f) continue;
+                    outsideGridCredit -= 1f;
+                }
+                else
+                {
+                    absorptionCredit.TryGetValue(cell, out float credit);
+                    if (credit < 1f) continue;
+                    absorptionCredit[cell] = credit - 1f;
+                }
+
+                Destroy(waterDroplets[i]);
+                waterDroplets.RemoveAt(i);
+            }
         }
 
         void OnEnable()

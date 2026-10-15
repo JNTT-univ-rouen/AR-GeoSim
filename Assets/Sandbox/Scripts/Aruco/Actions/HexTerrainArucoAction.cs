@@ -1,4 +1,4 @@
-using ARSandbox.Aruco.HexTiles;
+﻿using ARSandbox.Aruco.HexTiles;
 using UnityEngine;
 
 namespace ARSandbox.Aruco.Actions
@@ -24,7 +24,27 @@ namespace ARSandbox.Aruco.Actions
 
         public override void OnMarkerAppeared(ArucoMarkerReading reading, ArucoSceneContext context)
         {
+            ReturnControlToTerrain(context);
             ReportSeen(reading, context, warnIfNoPosition: true);
+        }
+
+        /// <summary>
+        /// Poser une tuile, c'est choisir de se servir de la grille : le debit
+        /// global impose par une carte de qualite du sol (11, 12, 13) rend donc
+        /// la main au tableau par terrain.
+        ///
+        /// Sans ca, une seule carte de sol posee une fois dans la seance
+        /// neutralisait les tuiles jusqu'au redemarrage, puisque ces cartes-la
+        /// ont un effet persistant.
+        /// </summary>
+        private void ReturnControlToTerrain(ArucoSceneContext context)
+        {
+            ARSandbox.WaterSimulation.WaterSimulation water = context != null ? context.WaterSimulation : null;
+            if (water == null || water.terrainAbsorption == null) return;
+            if (!water.terrainAbsorption.HasGlobalOverride) return;
+
+            water.terrainAbsorption.ClearGlobalOverride();
+            Debug.Log($"{this} : une tuile est posee, l'infiltration repasse par terrain.");
         }
 
         /// <summary>

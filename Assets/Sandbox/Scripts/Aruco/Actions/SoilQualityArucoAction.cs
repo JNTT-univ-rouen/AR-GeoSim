@@ -40,6 +40,7 @@ namespace ARSandbox.Aruco.Actions
         [System.NonSerialized] private static bool savedAbsorptionActive;
         [System.NonSerialized] private static float savedAbsorptionSpeed;
         [System.NonSerialized] private static bool savedAbsorptionDisabled;
+        [System.NonSerialized] private static bool savedHadGlobalOverride;
 
         public override void OnMarkerAppeared(ArucoMarkerReading reading, ArucoSceneContext context)
         {
@@ -51,7 +52,7 @@ namespace ARSandbox.Aruco.Actions
             SaveStateOnce(water);
 
             water.UI_ToggleActivateWaterAbsorption(absorptionActive);
-            water.UI_SetWaterAbsorptionSpeed(DropsPerSecondToSetting(absorptionDropsPerSecond));
+            ApplyAbsorption(water, absorptionDropsPerSecond);
 
             Debug.Log($"{this} : sol {(absorptionActive ? "absorbant" : "impermeable")} " +
                       $"({absorptionDropsPerSecond:F1} goutte(s)/s)");
@@ -68,6 +69,14 @@ namespace ARSandbox.Aruco.Actions
             // regle avant, pour ne pas laisser l'interface et la simulation
             // desynchronisees apres une demonstration.
             water.UI_ToggleActivateWaterAbsorption(savedAbsorptionActive);
+
+            if (!savedHadGlobalOverride && water.terrainAbsorption != null)
+            {
+                // Aucune carte de sol avant celle qu'on retire : le terrain
+                // reprend la main, cellule par cellule.
+                water.terrainAbsorption.ClearGlobalOverride();
+            }
+
             // Le curseur etait au minimum : on le remet a zero, et non a la
             // derniere vitesse connue, qui ne servait plus a rien.
             water.UI_SetWaterAbsorptionSpeed(
@@ -91,6 +100,8 @@ namespace ARSandbox.Aruco.Actions
             savedAbsorptionActive = water.WaterAbsorbtionToggle != null && water.WaterAbsorbtionToggle.isOn;
             savedAbsorptionSpeed = water.WaterAbsorptionSpeed;
             savedAbsorptionDisabled = water.WaterAbsorptionDisabled;
+            savedHadGlobalOverride = water.terrainAbsorption != null
+                                     && water.terrainAbsorption.HasGlobalOverride;
             hasSavedState = true;
         }
 
@@ -101,6 +112,31 @@ namespace ARSandbox.Aruco.Actions
         private static float SpeedToSliderValue(float speed)
         {
             return speed > 0.0001f ? 1f / speed : 1f;
+        }
+
+        /// <summary>
+        /// Applique le debit d'infiltration de cette carte a tout le bac.
+        ///
+        /// Le debit est impose au tableau par terrain (HexTerrainAbsorption),
+        /// et non traduit en valeur de curseur : depuis que l'infiltration se
+        /// lit cellule par cellule, le curseur n'est plus un debit absolu mais
+        /// un facteur de 0 a 1. Y envoyer "10 gouttes par seconde" donnait un
+        /// facteur de 0,17, et le sol poreux se retrouvait six fois plus sec
+        /// que le reglage par defaut - l'inverse de ce qui est annonce.
+        ///
+        /// Sans tableau dans la scene, on retombe sur l'ancien chemin : le
+        /// curseur global, ou la valeur est bien un debit.
+        /// </summary>
+        private static void ApplyAbsorption(ARSandbox.WaterSimulation.WaterSimulation water,
+                                            float dropsPerSecond)
+        {
+            if (water.terrainAbsorption != null)
+            {
+                water.terrainAbsorption.SetGlobalOverride(dropsPerSecond);
+                return;
+            }
+
+            water.UI_SetWaterAbsorptionSpeed(DropsPerSecondToSetting(dropsPerSecond));
         }
 
         /// <summary>
