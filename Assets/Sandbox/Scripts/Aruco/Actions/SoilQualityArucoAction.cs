@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace ARSandbox.Aruco.Actions
 {
@@ -39,6 +39,7 @@ namespace ARSandbox.Aruco.Actions
         [System.NonSerialized] private static bool hasSavedState;
         [System.NonSerialized] private static bool savedAbsorptionActive;
         [System.NonSerialized] private static float savedAbsorptionSpeed;
+        [System.NonSerialized] private static bool savedAbsorptionDisabled;
 
         public override void OnMarkerAppeared(ArucoMarkerReading reading, ArucoSceneContext context)
         {
@@ -67,7 +68,10 @@ namespace ARSandbox.Aruco.Actions
             // regle avant, pour ne pas laisser l'interface et la simulation
             // desynchronisees apres une demonstration.
             water.UI_ToggleActivateWaterAbsorption(savedAbsorptionActive);
-            water.UI_SetWaterAbsorptionSpeed(SpeedToSliderValue(savedAbsorptionSpeed));
+            // Le curseur etait au minimum : on le remet a zero, et non a la
+            // derniere vitesse connue, qui ne servait plus a rien.
+            water.UI_SetWaterAbsorptionSpeed(
+                savedAbsorptionDisabled ? 0f : SpeedToSliderValue(savedAbsorptionSpeed));
             hasSavedState = false;
 
             Debug.Log($"{this} : retour au reglage d'origine du sol");
@@ -86,6 +90,7 @@ namespace ARSandbox.Aruco.Actions
 
             savedAbsorptionActive = water.WaterAbsorbtionToggle != null && water.WaterAbsorbtionToggle.isOn;
             savedAbsorptionSpeed = water.WaterAbsorptionSpeed;
+            savedAbsorptionDisabled = water.WaterAbsorptionDisabled;
             hasSavedState = true;
         }
 

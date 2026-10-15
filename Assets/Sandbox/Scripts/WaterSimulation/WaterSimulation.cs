@@ -62,6 +62,13 @@ namespace ARSandbox.WaterSimulation
         private IEnumerator RunAbsorptionCoroutine;
         private bool _soilAbsorptionActive;
         public float WaterAbsorptionSpeed { get; private set; }
+
+        /// <summary>
+        /// Vrai quand la vitesse d'absorption est au minimum : le sol ne boit
+        /// rien. Distinct de la case a cocher d'absorption, qui reste cochee :
+        /// remonter le curseur reprend l'infiltration sans y retoucher.
+        /// </summary>
+        public bool WaterAbsorptionDisabled { get; private set; }
         public Toggle WaterAbsorbtionToggle ;
 
         [Header("Precipitation Settings (Hand-Driven)")]
@@ -133,9 +140,19 @@ namespace ARSandbox.WaterSimulation
         {
             while (waterDroplets.Count > 0 & _soilAbsorptionActive)
             {
+                // Vitesse au minimum : on continue de tourner, sans detruire
+                // aucune goutte. Sortir de la boucle decocherait la case
+                // d'absorption et il faudrait la recocher a la main pour
+                // repartir, alors que l'utilisateur n'a touche qu'au curseur.
+                if (WaterAbsorptionDisabled)
+                {
+                    yield return new WaitForSeconds(1 / 60.0f);
+                    continue;
+                }
+
                 Destroy(waterDroplets[waterDroplets.Count - 1]);
                 waterDroplets.RemoveAt(waterDroplets.Count - 1);
-                
+
                 yield return new WaitForSeconds(WaterAbsorptionSpeed/ 60.0f);
             }
 
@@ -520,6 +537,14 @@ namespace ARSandbox.WaterSimulation
 		}
         public void UI_SetWaterAbsorptionSpeed(float waterSpeedMultiplier)
         {
+            // Curseur au minimum = aucune absorption, et non une absorption
+            // tres lente. La valeur n'est pas transposable en delai : avec
+            // WaterAbsorptionSpeed = 1/0, on obtient l'infini, et avec 0 la
+            // simulation detruirait une goutte par image, soit exactement
+            // l'inverse. D'ou un etat a part.
+            WaterAbsorptionDisabled = waterSpeedMultiplier <= 0f;
+            if (WaterAbsorptionDisabled) return;
+
             WaterAbsorptionSpeed = 1/waterSpeedMultiplier;
         }
         
