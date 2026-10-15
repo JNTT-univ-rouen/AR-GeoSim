@@ -23,9 +23,13 @@ namespace Sandbox.Scripts.ServerClient
         private RenderTexture _serverRenderTexture;
         private SandboxDescriptor sandboxDescriptor;
 
-        private GameObject currentMode;
         public ModeSelector ModeHandler;
-        private bool isWaterSimulationOn;
+
+        // Vrai quand c'est ce composant qui a pose le shader du terrain, donc
+        // quand c'est a lui de le rendre en s'eteignant. Remis a jour a chaque
+        // activation : un drapeau garde d'une activation a l'autre finissait
+        // par mentir (cf. OnEnable).
+        private bool paintsTerrain;
         
         private string _sanitizedUrl;
         private bool _running= false;
@@ -68,9 +72,12 @@ namespace Sandbox.Scripts.ServerClient
 
         private void OnEnable()
         {
-            currentMode = ModeHandler.CurrentMode;
-            if (currentMode == WaterSimulation.gameObject) isWaterSimulationOn = true;
-            if (isWaterSimulationOn == false)
+            // Le droit de peindre le terrain est demande au mode en cours, et
+            // non deduit d'un drapeau conserve entre deux activations : celui-ci
+            // restait vrai apres un passage par la simulation d'eau, et le mode
+            // serveur n'appliquait alors plus jamais son shader.
+            paintsTerrain = ModeHandler != null && ModeHandler.Modes.ServerClientPaintsTerrain;
+            if (paintsTerrain)
             {
                 Sandbox.SetSandboxShader(ServerShader);
                 Sandbox.SetShaderTexture("_FireSurfaceTex", _serverRenderTexture);
@@ -127,8 +134,14 @@ namespace Sandbox.Scripts.ServerClient
                 Destroy(_serverRenderTexture);
                 _serverRenderTexture = null;
             }
-            //reset the shader to default
-            Sandbox.SetDefaultShader();
+            // Le shader n'est rendu que s'il avait ete pris. Pendant la
+            // simulation d'eau, le terrain appartient a la simulation : y
+            // remettre le shader par defaut effacerait ses metaballs.
+            if (paintsTerrain)
+            {
+                Sandbox.SetDefaultShader();
+                paintsTerrain = false;
+            }
         }
 
         public class ImageResponse

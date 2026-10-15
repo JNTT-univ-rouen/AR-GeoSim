@@ -60,6 +60,9 @@ namespace ARSandbox
         public SandboxDataCamera SandboxDataCamera;
         public TopographyLabelManager TopographyTextHandler;
         public FreezeFrame FreezeFrame;
+
+        [Tooltip("Ecrit dans la console chaque changement de shader du terrain, avec le script qui l'a demande. A cocher quand la vue change sans raison apparente : le log nomme le coupable.")]
+        public bool logShaderChanges = false;
         public Vector2 MESH_XY_STRIDE_DS1 { get; private set; }
         public Vector2 MESH_XY_STRIDE_DS2 { get; private set; }
         public Vector2 MESH_XY_STRIDE_DS3 { get; private set; }
@@ -336,9 +339,36 @@ namespace ARSandbox
 
         public void SetSandboxShader(Shader sandboxShader)
         {
+            if (logShaderChanges) LogShaderChange(sandboxShader);
+
             NormalMaterial.shader = sandboxShader;
             UsingCustomShader = true;
             SetShaderProperties(NormalMaterial);
+        }
+
+        /// <summary>
+        /// Journalise qui change le shader du terrain. Le shader est ecrit
+        /// depuis une dizaine d'endroits - chaque simulation, le menu des
+        /// saisons, les marqueurs ArUco de lecture du relief - et une vue qui
+        /// change "sans raison" vient toujours de l'un d'eux. Le nom de
+        /// l'appelant est lu dans la pile : c'est le seul moyen de savoir
+        /// lequel sans instrumenter les dix sites d'appel.
+        /// </summary>
+        private void LogShaderChange(Shader newShader)
+        {
+            string caller = "?";
+            var frame = new System.Diagnostics.StackTrace(2, false).GetFrame(0);
+            if (frame != null)
+            {
+                var method = frame.GetMethod();
+                caller = (method.DeclaringType != null ? method.DeclaringType.Name : "?") + "." + method.Name;
+            }
+
+            string from = NormalMaterial != null && NormalMaterial.shader != null
+                            ? NormalMaterial.shader.name : "aucun";
+            string to = newShader != null ? newShader.name : "null";
+
+            Debug.Log("[Sandbox] Shader du terrain : " + from + " -> " + to + " (demande par " + caller + ")");
         }
 
         public void SetShaderTexture(string textureName, Texture texture)
@@ -402,6 +432,8 @@ namespace ARSandbox
         {
             if (meshRenderer != null)
             {
+                if (logShaderChanges) LogShaderChange(DefaultSandboxShader);
+
                 NormalMaterial.shader = DefaultSandboxShader;
                 UsingCustomShader = false;
                 SetShaderProperties(NormalMaterial);
