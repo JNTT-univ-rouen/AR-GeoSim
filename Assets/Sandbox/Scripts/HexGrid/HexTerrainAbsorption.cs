@@ -54,12 +54,19 @@ public class HexTerrainAbsorption : MonoBehaviour
     // contrediraient, une cellule de goudron restant impermeable au milieu d'un
     // bac declare poreux.
     //
-    // Ce debit impose ne dure qu'un episode d'absorption : WaterSimulation le
-    // leve des que le bac est asseche, et poser une carte tuile le leve aussi.
+    // Ce debit impose ne dure qu'un episode d'absorption : des que l'eau
+    // presente sous ce reglage a ete entierement bue, chaque terrain retrouve
+    // son debit du tableau (cf. EndOverrideIfDry). Poser une carte tuile le
+    // leve aussi.
     //
     // Etat d'execution, non serialise : rien a enregistrer dans la scene.
     private bool hasGlobalOverride;
     private float globalOverrideDropsPerSecond;
+
+    // Vrai des que de l'eau a ete vue sur le bac depuis que le debit est
+    // impose. Sans ca, une carte posee sur un bac sec - le cas courant, on pose
+    // la carte PUIS on fait pleuvoir - serait levee avant meme d'avoir servi.
+    private bool overrideHasSeenWater;
 
     /// <summary>Vrai quand une carte de qualite du sol impose son debit.</summary>
     public bool HasGlobalOverride => hasGlobalOverride;
@@ -72,12 +79,40 @@ public class HexTerrainAbsorption : MonoBehaviour
     {
         hasGlobalOverride = true;
         globalOverrideDropsPerSecond = Mathf.Max(0f, dropsPerSecond);
+        overrideHasSeenWater = false;
     }
 
     /// <summary>Rend la main au tableau par terrain.</summary>
     public void ClearGlobalOverride()
     {
         hasGlobalOverride = false;
+        overrideHasSeenWater = false;
+    }
+
+    /// <summary>
+    /// A appeler a chaque pas de la simulation d'eau, avec le nombre de gouttes
+    /// sur le bac. Leve le debit impose une fois que l'eau tombee sous ce
+    /// reglage a disparu : chaque terrain retrouve alors son debit du tableau.
+    /// Renvoie vrai au pas ou le debit est leve.
+    ///
+    /// Suivi a part de la coroutine d'absorption : celle-ci peut ne jamais
+    /// tourner (case decochee), s'arreter avant la fin (changement de mode),
+    /// ou etre lancee plusieurs fois. Seul le niveau d'eau fait foi.
+    /// </summary>
+    public bool EndOverrideIfDry(int dropletCount)
+    {
+        if (!hasGlobalOverride) return false;
+
+        if (dropletCount > 0)
+        {
+            overrideHasSeenWater = true;
+            return false;
+        }
+
+        if (!overrideHasSeenWater) return false;
+
+        ClearGlobalOverride();
+        return true;
     }
 
     /// <summary>
