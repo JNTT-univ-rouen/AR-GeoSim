@@ -176,8 +176,14 @@ namespace ARSandbox.WaterSimulation
 
         IEnumerator ReduceWater()
         {
+            // Vrai des qu'au moins un pas d'absorption a tourne : distingue un
+            // bac asseche par l'absorption d'un bac deja sec au lancement.
+            bool absorbedSomething = false;
+
             while (waterDroplets.Count > 0 & _soilAbsorptionActive)
             {
+                absorbedSomething = true;
+
                 // Vitesse au minimum : on continue de tourner, sans detruire
                 // aucune goutte. Sortir de la boucle decocherait la case
                 // d'absorption et il faudrait la recocher a la main pour
@@ -201,6 +207,24 @@ namespace ARSandbox.WaterSimulation
                 waterDroplets.RemoveAt(waterDroplets.Count - 1);
 
                 yield return new WaitForSeconds(WaterAbsorptionSpeed/ 60.0f);
+            }
+
+            // Fin de l'episode d'absorption, toute l'eau a ete bue : le debit
+            // impose a tout le bac par une carte de qualite du sol (11, 12, 13)
+            // s'arrete la, et chaque cellule retrouve le debit de son terrain.
+            // Sans ca, la carte etant persistante, l'absorption restait
+            // homogene jusqu'a l'apparition d'une nouvelle carte tuile.
+            //
+            // Seulement si l'absorption a vraiment tourne : une carte posee
+            // sur un bac sec lance cette coroutine, qui sort aussitot, AVANT que
+            // la carte n'impose son debit. Son reglage vaut alors pour la
+            // prochaine averse. Et seulement si le bac est sec : une absorption
+            // coupee (carte 12, case decochee) n'est pas un episode termine.
+            if (absorbedSomething && waterDroplets.Count == 0 &&
+                terrainAbsorption != null && terrainAbsorption.HasGlobalOverride)
+            {
+                terrainAbsorption.ClearGlobalOverride();
+                Debug.Log("WaterSimulation : bac asseche, l'infiltration repasse par terrain.", this);
             }
 
             this.WaterAbsorbtionToggle.isOn = false;

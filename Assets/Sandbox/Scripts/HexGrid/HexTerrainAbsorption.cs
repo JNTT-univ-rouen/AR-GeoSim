@@ -54,6 +54,9 @@ public class HexTerrainAbsorption : MonoBehaviour
     // contrediraient, une cellule de goudron restant impermeable au milieu d'un
     // bac declare poreux.
     //
+    // Ce debit impose ne dure qu'un episode d'absorption : WaterSimulation le
+    // leve des que le bac est asseche, et poser une carte tuile le leve aussi.
+    //
     // Etat d'execution, non serialise : rien a enregistrer dans la scene.
     private bool hasGlobalOverride;
     private float globalOverrideDropsPerSecond;
